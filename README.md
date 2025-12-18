@@ -67,13 +67,40 @@ Toggle `thinking on` to see how ZAI analyzes each request before executing:
 4. EXECUTION PLAN: Single PowerShell command
 ```
 
+---
+
 ### 3. Speed Modes
-- **Normal**: Most detailed responses (~26s average)
-- **Eco**: Faster, token-efficient (~10s average)  
-- **Lightning**: Minimal explanation, max speed (~5s average)
+
+ZAI supports three execution modes designed to balance **performance, speed, and response quality** depending on your needs.
+
+> ⚠️ Note: The following benchmark is based on a **simple file deletion task**, used only as a baseline test.
+> In real-world workloads, performance differences between modes may vary depending on task complexity.
+
+####  Benchmark (File Deletion Test)
+
+* **Normal**: 3.01s
+* **Eco**: 3.21s
+* **Lightning**: 2.98s
+
+####  Mode Descriptions
+
+* **Normal**
+  The most balanced and reliable mode.
+  Optimized for **best overall performance and stability**, making it the recommended default for most tasks.
+
+* **Eco**
+  Focuses on **token efficiency and reduced resource usage**.
+  Slightly slower in some cases, but ideal for longer sessions or cost-sensitive operations.
+
+* **Lightning**
+  Tuned for **maximum execution speed** with minimal overhead.
+  Provides the fastest responses, trading off detailed reasoning and verbosity.
+
 
 Switch permanently: `eco` or `lightning`  
 Single command: `"your command" eco`
+
+---
 
 ### 4. Persistent Memory
 ZAI remembers things across sessions:
