@@ -141,17 +141,55 @@ class ModeManager:
         },
         "eco": {
             "model": "gemini-2.5-flash-lite",
-            "temperature": 0.5,
-            "description": "Economy mode - Token efficient",
-            "instruction_modifier": "\n⚡ ECO MODE: Provide SHORT, CONCISE, TOKEN-EFFICIENT responses. Be brief and direct."
+            "temperature": 0.3,
+            "max_output_tokens": 2048,
+            "top_p": 0.8,
+            "top_k": 20,
+            "response_mime_type": "application/json",
+            "description": "Economy mode - Maximum token efficiency with deterministic output",
+            "instruction_modifier": """
+⚡ ECO MODE RULES:
+- ULTRA CONCISE: Keep response text under 2 sentences.
+- NO fluff, NO chat.
+- PREFER CHAINING: Combine commands (e.g., 'mkdir test && cd test') instead of multiple steps.
+- DIRECT JSON output only.
+- Token budget: MINIMAL.
+"""
         },
         "lightning": {
-            "model": "gemini-2.5-flash",
-            "temperature": 0.1,
-            "description": "Lightning mode - Maximum speed and determinism",
-            "instruction_modifier": "\n⚡ LIGHTNING MODE: NO CHAT. NO EXPLANATIONS. ONLY ACTION. Return JSON immediately. Be deterministic."
+            "model": "gemini-2.5-flash-lite",
+            "temperature": 0.0,
+            "max_output_tokens": 2048,
+            "top_p": 0.9,
+            "top_k": 1,
+            "response_mime_type": "application/json",
+            "description": "Lightning mode - Ultra-fast, zero-confirmation, deterministic",
+            "instruction_modifier": """
+⚡ LIGHTNING MODE - EXTREME SPEED:
+- ZERO chat, ZERO explanation.
+- OUTPUT RAW JSON ONLY. No markdown formatting.
+- INSTANT action - DO NOT use <thinking> tags.
+- ONE action preferred (combine if possible).
+- Example response: {"understanding": "Delete logs", "actions": [{"type": "command", "details": {"shell": "cmd", "content": "del *.log"}}], "response": "Done."}
+SPEED IS EVERYTHING. BE MINIMAL.
+"""
         }
     }
+    
+    @staticmethod
+    def get_mode_config(mode_name):
+        """Get configuration for a mode"""
+        return ModeManager.MODES.get(mode_name.lower(), ModeManager.MODES["normal"])
+    
+    @staticmethod
+    def is_valid_mode(mode_name):
+        """Check if mode is valid"""
+        return mode_name.lower() in ModeManager.MODES
+    
+    @staticmethod
+    def list_modes():
+        """List all available modes"""
+        return list(ModeManager.MODES.keys())
     
     @staticmethod
     def get_mode_config(mode_name):
@@ -970,7 +1008,7 @@ class ZAIShell:
         
         print(f"""
 {Fore.CYAN}╔════════════════════════════════════════════════════════════╗
-║        🚀 ZAI v5.0 - Advanced AI Assistant               ║
+║        🚀 ZAI v5.0.1 - Advanced AI Assistant               ║
 ║         Memory • Modes • Thinking • Security              ║
 ╚════════════════════════════════════════════════════════════╝{Style.RESET_ALL}
 
