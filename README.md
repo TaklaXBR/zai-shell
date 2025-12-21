@@ -154,16 +154,19 @@ Example output:
 
 ### ⚡ Three Speed Modes
 
-| Mode | Best For | Speed |
-|------|----------|-------|
-| **Lightning** | Quick operations | ⚡⚡⚡ (2.78s) |
-| **Normal** | Regular tasks | ⚡⚡ (3.01s) |
-| **Eco** | Long sessions | ⚡ (3.21s) |
+| Mode | Best For | Speed (file deletion) |
+|------|----------|----------|
+| **Lightning** | Maximum speed | ⚡⚡⚡ (1.90s) |
+| **Eco** | Token-efficient | ⚡⚡ (1.99s) |
+| **Normal** | Highest accuracy | ⚡ (3.01s) |
 
 ```bash
 lightning     # Switch permanently
 "command" eco # Single command override
 ```
+
+![Lightning Mode Performance](assets/lightningtest.gif)
+*Lightning mode: 48 PDFs organized into desktop folder in 3.34 seconds*
 
 ### 💾 Persistent Memory
 Remembers across sessions:
