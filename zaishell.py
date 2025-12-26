@@ -469,7 +469,7 @@ class ModeManager:
         "lightning": {
             "model": "gemini-2.5-flash-lite",
             "temperature": 0.1,
-            "max_output_tokens": 1024,
+            "max_output_tokens": 2048,
             "top_p": 0.9,
             "top_k": 1,
             "response_mime_type": "application/json",
@@ -1666,4 +1666,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
