@@ -13,11 +13,19 @@ from colorama import init, Fore, Style
 
 init(autoreset=True)
 
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', "Enter Your API Key Here")
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', "Or Enter Your API Key Here")
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Memory file path
 MEMORY_FILE = ".zaishell_memory.json"
+
+# ChromaDB settings
+CHROMA_DB_PATH = ".zaishell_chromadb"
+CHROMA_COLLECTION_NAME = "zaishell_memory"
+
+# Offline model settings
+OFFLINE_MODEL_PATH = ".zaishell_offline_model"
+OFFLINE_MODEL_NAME = "microsoft/phi-2"
 
 SAFETY_SETTINGS = [
     {
@@ -37,6 +45,146 @@ SAFETY_SETTINGS = [
         "threshold": "BLOCK_NONE"
     },
 ]
+
+# Dangerous commands for --safe mode
+DANGEROUS_COMMANDS = [
+    'rm -rf', 'sudo rm', 'del /f', 'format', 'reboot', 'shutdown',
+    'init 0', 'init 6', 'poweroff', 'halt', 'dd if=', 'mkfs',
+    ':(){:|:&};:', 'chmod -R 777 /', 'chown -R', '> /dev/sda',
+    'mv /* ', 'rm -r /', 'sudo dd', 'fdisk', 'wipefs'
+]
+
+
+class ChromaMemoryManager:
+    """ChromaDB-based persistent memory manager"""
+    
+    def __init__(self, fallback_to_json=True):
+        self.use_chromadb = False
+        self.chroma_client = None
+        self.collection = None
+        self.fallback_to_json = fallback_to_json
+        
+        try:
+            import chromadb
+            from chromadb.config import Settings
+            
+            self.chroma_client = chromadb.PersistentClient(
+                path=CHROMA_DB_PATH,
+                settings=Settings(anonymized_telemetry=False)
+            )
+            
+            self.collection = self.chroma_client.get_or_create_collection(
+                name=CHROMA_COLLECTION_NAME,
+                metadata={"description": "ZAIShell conversation memory"}
+            )
+            
+            self.use_chromadb = True
+            print(f"{Fore.GREEN}✓ ChromaDB memory initialized{Style.RESET_ALL}")
+            
+        except ImportError:
+            print(f"{Fore.YELLOW}⚠️ ChromaDB not installed. Install: pip install chromadb{Style.RESET_ALL}")
+            if fallback_to_json:
+                print(f"{Fore.YELLOW}→ Falling back to JSON memory{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.YELLOW}⚠️ ChromaDB error: {e}. Using JSON memory{Style.RESET_ALL}")
+        
+        # Always keep JSON as backup/fallback
+        self.json_manager = MemoryManager()
+        self.memory = self.json_manager.memory
+    
+    def get_offline_mode(self):
+        """Get offline mode status"""
+        return self.json_manager.get_offline_mode()
+    
+    def set_offline_mode(self, enabled):
+        """Set offline mode"""
+        self.json_manager.set_offline_mode(enabled)
+    
+    def add_conversation(self, role, message):
+        """Add conversation to both ChromaDB and JSON"""
+        timestamp = datetime.datetime.now().isoformat()
+        
+        # Add to JSON (always)
+        self.json_manager.add_conversation(role, message)
+        
+        # Add to ChromaDB if available
+        if self.use_chromadb and self.collection:
+            try:
+                doc_id = f"{role}_{timestamp}"
+                self.collection.add(
+                    documents=[message[:1000]],
+                    metadatas=[{
+                        "role": role,
+                        "timestamp": timestamp,
+                        "full_message": message[:2000]
+                    }],
+                    ids=[doc_id]
+                )
+            except Exception as e:
+                print(f"{Fore.YELLOW}⚠️ ChromaDB add error: {e}{Style.RESET_ALL}")
+    
+    def get_recent_history(self, count=5):
+        """Get recent history from ChromaDB or JSON"""
+        if self.use_chromadb and self.collection:
+            try:
+                results = self.collection.get(
+                    limit=count,
+                    include=["metadatas", "documents"]
+                )
+                
+                history = []
+                for i, metadata in enumerate(results["metadatas"]):
+                    history.append({
+                        "role": metadata["role"],
+                        "message": metadata.get("full_message", results["documents"][i]),
+                        "timestamp": metadata["timestamp"]
+                    })
+                
+                return sorted(history, key=lambda x: x["timestamp"])[-count:]
+            except Exception as e:
+                print(f"{Fore.YELLOW}⚠️ ChromaDB query error: {e}{Style.RESET_ALL}")
+        
+        # Fallback to JSON
+        return self.json_manager.get_recent_history(count)
+    
+    def search_memory(self, query, n_results=3):
+        """Search similar conversations in ChromaDB"""
+        if self.use_chromadb and self.collection:
+            try:
+                results = self.collection.query(
+                    query_texts=[query],
+                    n_results=n_results,
+                    include=["metadatas", "documents", "distances"]
+                )
+                return results
+            except Exception as e:
+                print(f"{Fore.YELLOW}⚠️ ChromaDB search error: {e}{Style.RESET_ALL}")
+        return None
+    
+    def save_memory(self):
+        """Save to JSON (ChromaDB auto-persists)"""
+        self.json_manager.save_memory()
+    
+    def update_stats(self, successful=0, failed=0):
+        """Update statistics"""
+        self.json_manager.update_stats(successful, failed)
+    
+    def set_mode(self, mode):
+        """Set current mode"""
+        self.json_manager.set_mode(mode)
+        self.memory = self.json_manager.memory
+    
+    def get_mode(self):
+        """Get current mode"""
+        return self.json_manager.get_mode()
+    
+    def set_thinking(self, enabled):
+        """Set thinking mode"""
+        self.json_manager.set_thinking(enabled)
+    
+    def get_thinking(self):
+        """Get thinking mode"""
+        return self.json_manager.get_thinking()
 
 
 class MemoryManager:
@@ -70,6 +218,7 @@ class MemoryManager:
             "conversation_history": [],
             "mode": "normal",
             "thinking_enabled": False,
+            "offline_mode": False,
             "stats": {
                 "total_requests": 0,
                 "successful_actions": 0,
@@ -90,11 +239,10 @@ class MemoryManager:
         """Add conversation entry"""
         entry = {
             "role": role,
-            "message": message[:500],  # Limit message length
+            "message": message[:500],
             "timestamp": datetime.datetime.now().isoformat()
         }
         self.memory["conversation_history"].append(entry)
-        # Keep only last 50 conversations
         if len(self.memory["conversation_history"]) > 50:
             self.memory["conversation_history"] = self.memory["conversation_history"][-50:]
         self.save_memory()
@@ -127,6 +275,168 @@ class MemoryManager:
     def get_thinking(self):
         """Get thinking mode"""
         return self.memory.get("thinking_enabled", False)
+    
+    def set_offline_mode(self, enabled):
+        """Set offline mode"""
+        self.memory["offline_mode"] = enabled
+        self.save_memory()
+    
+    def get_offline_mode(self):
+        """Get offline mode status"""
+        return self.memory.get("offline_mode", False)
+
+
+class OfflineModelManager:
+    """Manages offline/local AI model"""
+    
+    def __init__(self):
+        self.model = None
+        self.tokenizer = None
+        self.is_ready = False
+        self.model_path = OFFLINE_MODEL_PATH
+        self.model_name = OFFLINE_MODEL_NAME
+    
+    def check_model_exists(self):
+        """Check if model is already downloaded"""
+        return os.path.exists(self.model_path) and os.path.isdir(self.model_path)
+    
+    def download_model(self):
+        """Download offline model"""
+        try:
+            print(f"\n{Fore.CYAN}📥 Downloading offline model (Phi-2 - ~5GB)...{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}This may take a few minutes depending on your internet speed{Style.RESET_ALL}\n")
+            
+            from transformers import AutoTokenizer, AutoModelForCausalLM
+            import torch
+            
+            print(f"{Fore.CYAN}[1/2] Downloading tokenizer...{Style.RESET_ALL}")
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name,
+                trust_remote_code=True
+            )
+            
+            print(f"{Fore.CYAN}[2/2] Downloading model...{Style.RESET_ALL}")
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                low_cpu_mem_usage=True
+            )
+            
+            # Save locally
+            os.makedirs(self.model_path, exist_ok=True)
+            print(f"{Fore.CYAN}💾 Saving model locally...{Style.RESET_ALL}")
+            model.save_pretrained(self.model_path)
+            tokenizer.save_pretrained(self.model_path)
+            
+            print(f"\n{Fore.GREEN}✓ Model downloaded successfully!{Style.RESET_ALL}")
+            return True
+            
+        except ImportError:
+            print(f"\n{Fore.RED}❌ Missing libraries. Install with:{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}pip install transformers torch accelerate{Style.RESET_ALL}")
+            return False
+        except Exception as e:
+            print(f"\n{Fore.RED}❌ Download failed: {e}{Style.RESET_ALL}")
+            return False
+    
+    def load_model(self):
+        """Load the offline model"""
+        try:
+            if not self.check_model_exists():
+                print(f"\n{Fore.YELLOW}⚠️ Offline model not found{Style.RESET_ALL}")
+                if not self.download_model():
+                    return False
+            
+            print(f"\n{Fore.CYAN}🔄 Loading offline model...{Style.RESET_ALL}")
+            
+            from transformers import AutoTokenizer, AutoModelForCausalLM
+            import torch
+            
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_path,
+                trust_remote_code=True
+            )
+            
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_path,
+                trust_remote_code=True,
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                low_cpu_mem_usage=True
+            )
+            
+            # Move to GPU if available
+            if torch.cuda.is_available():
+                self.model = self.model.to('cuda')
+                print(f"{Fore.GREEN}✓ Model loaded on GPU{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}✓ Model loaded on CPU (slower){Style.RESET_ALL}")
+            
+            self.is_ready = True
+            return True
+            
+        except Exception as e:
+            print(f"\n{Fore.RED}❌ Failed to load model: {e}{Style.RESET_ALL}")
+            return False
+    
+    def generate(self, prompt, max_length=1024, temperature=0.1):
+        """Generate response using offline model"""
+        if not self.is_ready:
+            return "Error: Offline model not loaded"
+        
+        try:
+            import torch
+            
+            formatted_prompt = prompt
+            
+            inputs = self.tokenizer(formatted_prompt, return_tensors="pt", truncation=True, max_length=2048)
+            
+            if torch.cuda.is_available():
+                try:
+                    inputs = {k: v.to('cuda') for k, v in inputs.items()}
+                except:
+                    pass
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_length=max_length,
+                    temperature=temperature,
+                    do_sample=True,
+                    top_p=0.9,
+                    repetition_penalty=1.1,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id
+                )
+            
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            
+            if formatted_prompt in response:
+                response = response.replace(formatted_prompt, "").strip()
+            
+            if "{" in response:
+                start_index = response.find("{")
+                bracket_count = 0
+                end_index = -1
+                
+                for i, char in enumerate(response[start_index:], start_index):
+                    if char == "{":
+                        bracket_count += 1
+                    elif char == "}":
+                        bracket_count -= 1
+                        
+                    if bracket_count == 0:
+                        end_index = i + 1
+                        break
+                
+                if end_index != -1:
+                    response = response[start_index:end_index]
+            
+            return response
+            
+        except Exception as e:
+            return f"Error generating response: {str(e)}"
 
 
 class ModeManager:
@@ -158,8 +468,8 @@ class ModeManager:
         },
         "lightning": {
             "model": "gemini-2.5-flash-lite",
-            "temperature": 0.0,
-            "max_output_tokens": 2048,
+            "temperature": 0.1,
+            "max_output_tokens": 1024,
             "top_p": 0.9,
             "top_k": 1,
             "response_mime_type": "application/json",
@@ -167,29 +477,13 @@ class ModeManager:
             "instruction_modifier": """
 ⚡ LIGHTNING MODE - EXTREME SPEED:
 - ZERO chat, ZERO explanation.
-- OUTPUT RAW JSON ONLY. No markdown formatting.
-- INSTANT action - DO NOT use <thinking> tags.
-- ONE action preferred (combine if possible).
-- Example response: {"understanding": "Delete logs", "actions": [{"type": "command", "details": {"shell": "cmd", "content": "del *.log"}}], "response": "Done."}
-SPEED IS EVERYTHING. BE MINIMAL.
+- OUTPUT MINIMAL JSON. Format: {"understanding":"brief","actions":[...],"response":"1 word"}
+- NO <thinking> tags.
+- ONE action only (chain commands with && or ; if needed).
+- Example: {"understanding":"Delete logs","actions":[{"type":"command","details":{"shell":"cmd","content":"del *.log"}}],"response":"Done"}
 """
         }
     }
-    
-    @staticmethod
-    def get_mode_config(mode_name):
-        """Get configuration for a mode"""
-        return ModeManager.MODES.get(mode_name.lower(), ModeManager.MODES["normal"])
-    
-    @staticmethod
-    def is_valid_mode(mode_name):
-        """Check if mode is valid"""
-        return mode_name.lower() in ModeManager.MODES
-    
-    @staticmethod
-    def list_modes():
-        """List all available modes"""
-        return list(ModeManager.MODES.keys())
     
     @staticmethod
     def get_mode_config(mode_name):
@@ -214,19 +508,56 @@ class AIBrain:
         self.memory = memory_manager
         self.current_mode = self.memory.get_mode()
         self.thinking_enabled = self.memory.get_thinking()
+        
+        self.offline_mode = self.memory.get_offline_mode()
+        self.offline_model = None
+        
+        if self.offline_mode:
+            print(f"\n{Fore.YELLOW}⚠️ System started in OFFLINE mode. Loading model...{Style.RESET_ALL}")
+            self.offline_model = OfflineModelManager()
+            self.offline_model.load_model()
+        
         self.model = self._create_model()
         self.tools = AITools()
         self.context = self._build_context()
-        self.max_retries = 3
-        self.temp_mode = None  # For single-command mode override
+        self.max_retries = 5
+        self.temp_mode = None
         
     def _create_model(self):
         """Create model based on current mode"""
+        if self.offline_mode:
+            return None  # Will use offline model
         mode_config = ModeManager.get_mode_config(self.current_mode)
         return genai.GenerativeModel(
             mode_config["model"],
             generation_config={"temperature": mode_config["temperature"]}
         )
+    
+    def switch_to_offline(self):
+        """Switch to offline mode"""
+        print(f"\n{Fore.CYAN}🔄 Switching to OFFLINE mode...{Style.RESET_ALL}")
+        
+        if self.offline_model is None:
+            self.offline_model = OfflineModelManager()
+        
+        if not self.offline_model.is_ready:
+            if not self.offline_model.load_model():
+                print(f"{Fore.RED}❌ Failed to load offline model{Style.RESET_ALL}")
+                return False
+        
+        self.offline_mode = True
+        self.memory.set_offline_mode(True)
+        print(f"\n{Fore.GREEN}✓ OFFLINE mode activated{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}→ All operations will use local AI model{Style.RESET_ALL}")
+        return True
+    
+    def switch_to_online(self):
+        """Switch back to online mode"""
+        self.offline_mode = False
+        self.memory.set_offline_mode(False)
+        self.model = self._create_model()
+        print(f"\n{Fore.GREEN}✓ ONLINE mode activated{Style.RESET_ALL}")
+        return True
     
     def switch_mode(self, new_mode, permanent=True):
         """Switch operation mode"""
@@ -236,7 +567,8 @@ class AIBrain:
         if permanent:
             self.current_mode = new_mode
             self.memory.set_mode(new_mode)
-            self.model = self._create_model()
+            if not self.offline_mode:
+                self.model = self._create_model()
         else:
             self.temp_mode = new_mode
         
@@ -253,7 +585,7 @@ class AIBrain:
         return self.temp_mode if self.temp_mode else self.current_mode
     
     def _build_context(self):
-        """Build system context - Give AI RAW information"""
+        """Build system context"""
         try:
             import psutil
             ctx = {
@@ -286,20 +618,50 @@ class AIBrain:
         shells = []
         
         if os.name == 'nt':  # Windows
+            # Core shells
             shells.extend(['cmd', 'powershell'])
+            
+            # Check PowerShell Core
             if subprocess.run(['where', 'pwsh'], capture_output=True, shell=True).returncode == 0:
                 shells.append('pwsh')
+            
+            # Check Git Bash
+            git_bash_paths = [
+                r'C:\Program Files\Git\bin\bash.exe',
+                r'C:\Program Files (x86)\Git\bin\bash.exe',
+                os.path.expanduser(r'~\AppData\Local\Programs\Git\bin\bash.exe')
+            ]
+            for path in git_bash_paths:
+                if os.path.exists(path):
+                    shells.append('git-bash')
+                    break
+            
+            # Check WSL (Windows Subsystem for Linux)
+            if subprocess.run(['where', 'wsl'], capture_output=True, shell=True).returncode == 0:
+                shells.append('wsl')
+            
+            # Check Cygwin
+            if os.path.exists(r'C:\cygwin64\bin\bash.exe') or os.path.exists(r'C:\cygwin\bin\bash.exe'):
+                shells.append('cygwin')
+        
         else:  # Linux/Mac
+            # Core shells
             shells.extend(['bash', 'sh'])
-            if subprocess.run(['which', 'zsh'], capture_output=True, shell=True).returncode == 0:
-                shells.append('zsh')
+            
+            # Check additional shells
+            shells_to_check = ['zsh', 'fish', 'ksh', 'tcsh', 'dash']
+            for shell in shells_to_check:
+                try:
+                    if subprocess.run(['which', shell], capture_output=True, shell=True).returncode == 0:
+                        shells.append(shell)
+                except:
+                    pass
         
         return shells
     
-    def think_and_act(self, user_message, retry_context=None, force_execute=False):
-        """Main thinking and action engine - Auto retry on error"""
+    def think_and_act(self, user_message, retry_context=None, force_execute=False, safe_mode=False, show_only=False, retry_count=0):
+        """Main thinking and action engine"""
         
-        # Reset temp mode after use
         if self.temp_mode and not retry_context:
             self.temp_mode = None
         
@@ -320,43 +682,76 @@ Failed Action:
 - Attempt: {retry_context['retry_count']}/{self.max_retries}
 
 🔧 YOUR TASK NOW:
-1. ANALYZE ERROR IN DETAIL:
-   - Why did it fail?
-   - Was the right shell used?
-   - Is command structure appropriate?
-   - Encoding issue?
-
-2. FIND A COMPLETELY DIFFERENT METHOD:
-   - Use DIFFERENT shell (PowerShell -> CMD or vice versa)
-   - Try DIFFERENT commands
-   - Use DIFFERENT encoding
-   - Apply DIFFERENT approach
-   
-3. CREATE NEW PLAN:
-   - DO NOT REPEAT previous error
-   - Choose BEST shell for each command
-   - Think freely - you can do anything
+1. ANALYZE ERROR IN DETAIL
+2. FIND A COMPLETELY DIFFERENT METHOD
+3. CREATE NEW PLAN
 
 REMEMBER: System has {len(self.context['available_shells'])} different shells: {', '.join(self.context['available_shells'])}
-You can use all of them! Use different shells for different commands in same task!
 """
-            system_instruction = self._build_system_instruction(retry_prompt)
+            system_instruction = self._build_system_instruction(retry_prompt, safe_mode)
         else:
-            system_instruction = self._build_system_instruction(user_message)
+            system_instruction = self._build_system_instruction(user_message, safe_mode)
 
         try:
-            response = self.model.generate_content(system_instruction)
-            return self._process_ai_response(response.text, user_message, force_execute=force_execute)
+            if self.offline_mode:
+
+                active_mode = self._get_active_mode()
+                mode_config = ModeManager.get_mode_config(active_mode)
+                mode_temperature = mode_config.get("temperature", 0.7)
+                
+                response_text = self.offline_model.generate(
+                    system_instruction,
+                    max_length=1024,
+                    temperature=mode_temperature
+                )
+            else:
+                response = self.model.generate_content(system_instruction)
+                response_text = response.text
+            
+            return self._process_ai_response(response_text, user_message, retry_count=retry_count, force_execute=force_execute, safe_mode=safe_mode, show_only=show_only)
             
         except Exception as e:
             return self._handle_error(e, user_message)
     
-    def _build_system_instruction(self, main_content):
-        """Build system instruction - COMPLETELY FREE AI + FULL SHELL FREEDOM"""
+    def _build_system_instruction(self, main_content, safe_mode=False):
+        """Build system instruction"""
+        
+        
+        if self.offline_mode:
+            shells = ', '.join(self.context['available_shells'])
+            
+            return f"""You are a command line tool. Output valid JSON only.
+
+Example 1:
+User: list files
+JSON: {{"understanding": "list files", "actions": [{{"type": "command", "description": "list files", "details": {{"shell": "cmd", "content": "dir"}}}}], "response": "Listing files."}}
+
+Example 2 (Turkish):
+User: masaustu ne notlar.txt olustur
+JSON: {{"understanding": "create file", "actions": [{{"type": "file", "description": "create file", "details": {{"path": "Desktop/notlar.txt", "content": "", "encoding": "utf-8"}}}}], "response": "Dosya olusturuldu."}}
+
+Current Task:
+User: {main_content}
+JSON:"""
         
         active_mode = self._get_active_mode()
         mode_config = ModeManager.get_mode_config(active_mode)
         mode_modifier = mode_config["instruction_modifier"]
+        
+        safe_mode_text = ""
+        if safe_mode:
+            safe_mode_text = f"""
+🛡️ SAFE MODE IS ACTIVE:
+CRITICAL RESTRICTIONS - These commands are STRICTLY FORBIDDEN:
+{', '.join(DANGEROUS_COMMANDS)}
+
+YOU MUST:
+- Reject any dangerous/destructive commands
+- Refuse system-critical operations (reboot, shutdown, format, etc.)
+- Block recursive deletions and mass file operations
+- Prevent privilege escalation attempts
+If user requests dangerous action, respond with: {{"understanding":"Dangerous request","actions":[],"response":"⛔ BLOCKED: This operation is dangerous and blocked by safe mode"}}
+"""
         
         thinking_instruction = ""
         if self.thinking_enabled:
@@ -365,19 +760,21 @@ You can use all of them! Use different shells for different commands in same tas
 Before creating your JSON response, you MUST perform detailed analysis inside <thinking> tags:
 
 <thinking>
-1. User Intent Analysis: What exactly does the user want?
-2. Security Assessment: Are there any risks?
-3. Method Selection: What's the best approach?
-4. Shell Selection: Which shell is most appropriate for each command?
-5. Potential Issues: What could go wrong?
-6. Alternative Approaches: What are the backup plans?
+1. User Intent Analysis
+2. Security Assessment
+3. Method Selection
+4. Shell Selection
+5. Potential Issues
+6. Alternative Approaches
 </thinking>
-
-This thinking process is MANDATORY. Only after completing it, provide your JSON response.
 """
         
         recent_history = self.memory.get_recent_history()
         history_text = self._format_history(recent_history)
+        
+        offline_notice = ""
+        if self.offline_mode:
+            offline_notice = f"\n{Fore.MAGENTA}🔌 OFFLINE MODE - Using local AI model{Style.RESET_ALL}\n"
         
         return f"""You are ZAI, a COMPLETELY FREE artificial intelligence assistant.
 
@@ -385,8 +782,10 @@ This thinking process is MANDATORY. Only after completing it, provide your JSON 
 🚀 YOUR POWER (No restrictions):
 ═══════════════════════════════════════════════════════════════
 
-🔧 CURRENT MODE: {active_mode.upper()}
+🔧 CURRENT MODE: {active_mode.upper()}{' (OFFLINE)' if self.offline_mode else ''}
 {mode_modifier}
+
+{safe_mode_text}
 
 🖥️ SYSTEM INFORMATION:
 - Operating System: {self.context['os']}
@@ -401,48 +800,11 @@ This thinking process is MANDATORY. Only after completing it, provide your JSON 
 {thinking_instruction}
 
 💪 YOUR CAPABILITIES:
-1. FILE/DIRECTORY OPERATIONS:
-   - Create/edit/delete files in any format (.py, .txt, .html, .exe, everything)
-   - Setup, delete, manage directory structures
-   - Handle binary files and everything else
-
-2. SYSTEM COMMANDS - FULL SHELL FREEDOM:
-   - Use DIFFERENT shell for each command
-   - PowerShell, CMD, bash, sh - all at your command
-   - Use multiple shells in same task
-   - Leverage advantages of each shell
-   - YOU DECIDE which command runs in which shell
-   - YOU SOLVE encoding issues yourself (utf-8, cp850, cp1254, whatever needed)
-   
-3. CODE WRITING:
-   - Write and execute code in any language
-   - Full applications, tools, games, everything
-   
-4. INFORMATION GATHERING:
-   - System status, processes, network
-   - File scanning, analysis
-   
-5. MULTI-TASKING:
-   - Do multiple jobs SIMULTANEOUSLY
-
-═══════════════════════════════════════════════════════════════
-⚡ IMPORTANT RULES:
-═══════════════════════════════════════════════════════════════
-
-✅ YOUR FREEDOMS:
-- YOU decide which command to use
-- YOU decide which shell to run it in (PowerShell/CMD/bash/sh)
-- YOU set encoding (utf-8, cp850, cp1254)
-- If error occurs, try DIFFERENT shell and method
-- Be creative - explore all system capabilities
-- NO fixed rules - YOU find the best solution for each situation
-- Use different shells for different commands in same task
-
-❌ WHAT NOT TO DO:
-- Don't say "I can't" - you CAN do EVERYTHING
-- Don't repeat the same error
-- Don't give technical details to user
-- Don't ask for confirmation
+1. FILE/DIRECTORY OPERATIONS
+2. SYSTEM COMMANDS - FULL SHELL FREEDOM
+3. CODE WRITING
+4. INFORMATION GATHERING
+5. MULTI-TASKING
 
 ═══════════════════════════════════════════════════════════════
 📋 RESPONSE FORMAT (JSON):
@@ -456,78 +818,15 @@ This thinking process is MANDATORY. Only after completing it, provide your JSON 
             "description": "What will be done",
             "details": {{
                 "path": "file/path (if applicable)",
-                "content": "content/command - YOU DECIDE THE BEST",
-                "shell": "cmd|powershell|pwsh|bash|sh - YOU CHOOSE BASED ON COMMAND",
+                "content": "content/command",
+                "shell": "cmd|powershell|pwsh|bash|sh",
                 "language": "code language (if applicable)",
-                "encoding": "utf-8|cp850|cp1254 - YOU CHOOSE",
+                "encoding": "utf-8|cp850|cp1254",
                 "mode": "binary|text (if applicable)"
             }}
         }}
     ],
     "response": "Natural language response to user"
-}}
-
-═══════════════════════════════════════════════════════════════
-🎯 SHELL SELECTION GUIDE:
-═══════════════════════════════════════════════════════════════
-
-Shells you can use on Windows:
-1. CMD (cmd):
-   - Simple commands: dir, copy, del, type, echo
-   - For quick and simple operations
-   - Example: "shell": "cmd", "content": "dir C:\\\\"
-
-2. PowerShell (powershell):
-   - Advanced commands: Get-ChildItem, Get-Process, Get-Content
-   - Object-based outputs
-   - Powerful for filtering and processing
-   - Example: "shell": "powershell", "content": "Get-Process | Sort-Object CPU -Descending | Select-Object -First 5"
-
-3. PowerShell Core (pwsh):
-   - Modern version of PowerShell
-   - Faster, cross-platform
-   - Use if available
-
-Shells you can use on Linux/Mac:
-1. bash: Standard in modern OS
-2. sh: Old but universal, for simple operations
-3. zsh: Use if available, advanced features
-
-IMPORTANT POINTS:
-- You can use DIFFERENT shells in same task!
-- Example: CMD for file list, PowerShell for process list
-- Adjust command structure based on shell
-- PowerShell -> Get-Process, CMD -> tasklist
-- PowerShell -> Get-ChildItem, CMD -> dir
-
-═══════════════════════════════════════════════════════════════
-💡 USAGE EXAMPLES:
-═══════════════════════════════════════════════════════════════
-
-Multi-shell usage example:
-{{
-    "understanding": "Perform system analysis",
-    "actions": [
-        {{
-            "type": "command",
-            "description": "List files",
-            "details": {{
-                "content": "dir C:\\\\Users",
-                "shell": "cmd",
-                "encoding": "cp850"
-            }}
-        }},
-        {{
-            "type": "command",
-            "description": "Analyze processes",
-            "details": {{
-                "content": "Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 | Format-Table Name,CPU,WorkingSet",
-                "shell": "powershell",
-                "encoding": "utf-8"
-            }}
-        }}
-    ],
-    "response": "System analysis completed"
 }}
 
 ═══════════════════════════════════════════════════════════════
@@ -539,15 +838,6 @@ Multi-shell usage example:
 🎯 CURRENT TASK:
 ═══════════════════════════════════════════════════════════════
 {main_content}
-
-REMEMBER: 
-- You are COMPLETELY FREE!
-- Choose BEST shell for each command
-- Use different shells in same task
-- No fixed rules
-- YOU find best method for each situation
-- If error occurs, try DIFFERENT shell and method
-- You can use all system capabilities!
 
 START!"""
     
@@ -563,10 +853,9 @@ START!"""
         
         return "\n".join(formatted)
     
-    def _process_ai_response(self, ai_text, original_request, retry_count=0, force_execute=False):
+    def _process_ai_response(self, ai_text, original_request, retry_count=0, force_execute=False, safe_mode=False, show_only=False):
         """Process AI response and execute actions"""
         try:
-            # Extract thinking if present
             if "<thinking>" in ai_text and "</thinking>" in ai_text:
                 thinking_start = ai_text.find("<thinking>") + 10
                 thinking_end = ai_text.find("</thinking>")
@@ -588,6 +877,18 @@ START!"""
                 
                 actions = ai_plan.get('actions', [])
                 
+                # --show mode: Display actions but don't execute
+                if show_only:
+                    self._show_actions_preview(actions, ai_plan.get('response', ''))
+                    return {"success": True, "message": "Preview only - no actions executed"}
+                
+                # --safe mode: Check for dangerous commands
+                if safe_mode and actions:
+                    blocked = self._check_dangerous_commands(actions)
+                    if blocked:
+                        print(f"\n{Fore.RED}⛔ BLOCKED by safe mode: {blocked}{Style.RESET_ALL}")
+                        return {"success": False, "message": f"Blocked: {blocked}"}
+                
                 # Show actions and ask for confirmation (unless force)
                 if actions and not force_execute:
                     if not self._confirm_actions(actions):
@@ -597,8 +898,6 @@ START!"""
                 results = []
                 
                 if actions:
-                    if retry_count > 0:
-                        print(f"{Fore.MAGENTA}🔄 Retry {retry_count}/{self.max_retries}...{Style.RESET_ALL}")
                     print(f"{Fore.YELLOW}⚡ Executing {len(actions)} action(s)...{Style.RESET_ALL}\n")
                     
                     for i, action in enumerate(actions, 1):
@@ -606,7 +905,7 @@ START!"""
                         results.append(result)
                         
                         if not result.get('success') and retry_count < self.max_retries:
-                            print(f"\n{Fore.YELLOW}🔧 Error detected, trying alternative method...{Style.RESET_ALL}")
+                            print(f"\n{Fore.YELLOW}🔧 Error detected, trying alternative method ({retry_count + 1}/{self.max_retries})...{Style.RESET_ALL}")
                             
                             retry_context = {
                                 'action_type': action.get('type', 'unknown'),
@@ -616,11 +915,14 @@ START!"""
                                 'retry_count': retry_count + 1
                             }
                             
-                            return self.think_and_act(original_request, retry_context, force_execute)
+                            return self.think_and_act(original_request, retry_context, force_execute, safe_mode, show_only, retry_count=retry_count + 1)
+                        
+                        elif not result.get('success') and retry_count >= self.max_retries:
+                            print(f"\n{Fore.RED}❌ Max retry limit ({self.max_retries}) reached. Stopping.{Style.RESET_ALL}")
+                            break
                         
                         time.sleep(0.1)
                 
-                # Update statistics
                 success_count = sum(1 for r in results if r.get('success'))
                 fail_count = len(results) - success_count
                 self.memory.update_stats(successful=success_count, failed=fail_count)
@@ -657,6 +959,60 @@ START!"""
             return {"success": True, "message": ai_text}
         except Exception as e:
             return self._handle_error(e, original_request)
+    
+    def _check_dangerous_commands(self, actions):
+        """Check if actions contain dangerous commands"""
+        for action in actions:
+            if action.get('type') == 'command':
+                content = action.get('details', {}).get('content', '').lower()
+                for dangerous in DANGEROUS_COMMANDS:
+                    if dangerous.lower() in content:
+                        return f"Dangerous command detected: {dangerous}"
+        return None
+    
+    def _show_actions_preview(self, actions, response):
+        """Show actions without executing (--show mode)"""
+        print(f"\n{Fore.CYAN}{'═' * 60}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}👁️  ACTION PREVIEW (--show mode)  👁️{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'═' * 60}{Style.RESET_ALL}\n")
+        
+        for i, action in enumerate(actions, 1):
+            action_type = action.get('type', 'unknown')
+            description = action.get('description', 'No description')
+            details = action.get('details', {})
+            
+            print(f"{Fore.GREEN}[{i}] {action_type.upper()}: {description}{Style.RESET_ALL}")
+            
+            if action_type == 'file':
+                print(f"    📄 Path: {details.get('path', 'N/A')}")
+                print(f"    📝 Encoding: {details.get('encoding', 'utf-8')}")
+                content = str(details.get('content', ''))
+                if len(content) > 200:
+                    print(f"    💾 Content ({len(content)} chars):")
+                    print(f"    {Fore.WHITE}{content[:200]}...{Style.RESET_ALL}")
+                else:
+                    print(f"    💾 Content:\n    {Fore.WHITE}{content}{Style.RESET_ALL}")
+            
+            elif action_type == 'command':
+                print(f"    🐚 Shell: {details.get('shell', 'N/A')}")
+                print(f"    💻 Command: {Fore.YELLOW}{details.get('content', 'N/A')}{Style.RESET_ALL}")
+                print(f"    📝 Encoding: {details.get('encoding', 'utf-8')}")
+            
+            elif action_type == 'code':
+                print(f"    🔤 Language: {details.get('language', 'N/A')}")
+                print(f"    📄 Path: {details.get('path', 'N/A')}")
+                content = str(details.get('content', ''))
+                if len(content) > 200:
+                    print(f"    💾 Code ({len(content)} chars):")
+                    print(f"    {Fore.WHITE}{content[:200]}...{Style.RESET_ALL}")
+            
+            print()
+        
+        print(f"{Fore.CYAN}{'═' * 60}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}🤖 Expected Response:{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}{response}{Style.RESET_ALL}")
+        print(f"\n{Fore.YELLOW}⚠️ No actions were executed (--show mode){Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'═' * 60}{Style.RESET_ALL}\n")
     
     def _confirm_actions(self, actions):
         """Show actions and ask for confirmation"""
@@ -760,6 +1116,9 @@ START!"""
             if not outputs:
                 return "Operation completed successfully!"
             
+            if self.offline_mode:
+                return outputs[0] if outputs else "Operation completed!"
+            
             prompt = f"""User's question: {original_request}
 
 Operation outputs:
@@ -776,10 +1135,10 @@ Only write the response text, nothing else. No JSON, no explanation, just the re
 
 
 class AITools:
-    """Tools that AI can use - COMPLETELY FREE + FULL SHELL SUPPORT"""
+    """Tools that AI can use"""
     
     def handle_file(self, details):
-        """File operations"""
+        """File operations with Smart Path Correction"""
         try:
             path = details.get('path', '')
             content = details.get('content', '')
@@ -788,6 +1147,21 @@ class AITools:
             
             if not path:
                 return {"success": False, "error": "File path not specified"}
+            
+            # --- AKILLI YOL DÜZELTME (SMART PATH FIX) ---
+            # Eğer yol "Desktop/" veya "Documents/" ile başlıyorsa gerçek yola çevir
+            path_lower = path.lower()
+            if path_lower.startswith("desktop/") or path_lower.startswith("desktop\\"):
+                # "Desktop/dosya.txt" -> "C:/Users/Ad/Desktop/dosya.txt"
+                real_desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+                clean_name = path[7:].lstrip('/\\')
+                path = os.path.join(real_desktop, clean_name)
+                
+            elif path_lower.startswith("documents/") or path_lower.startswith("documents\\"):
+                real_docs = os.path.join(os.path.expanduser('~'), 'Documents')
+                clean_name = path[9:].lstrip('/\\')
+                path = os.path.join(real_docs, clean_name)
+            # -------------------------------------------
             
             path = os.path.normpath(os.path.expanduser(path))
             
@@ -820,7 +1194,7 @@ class AITools:
             return {"success": False, "error": f"File error: {str(e)}"}
     
     def run_command(self, details):
-        """Execute system command - FULL SHELL FREEDOM"""
+        """Execute system command"""
         try:
             command = details.get('content', '')
             shell_type = details.get('shell', 'cmd').lower()
@@ -829,7 +1203,7 @@ class AITools:
             if not command:
                 return {"success": False, "error": "Command not specified"}
             
-            # Execute command based on shell type
+            # PowerShell variants
             if shell_type == 'powershell':
                 full_command = ['powershell', '-NoProfile', '-Command', command]
                 result = subprocess.run(
@@ -850,6 +1224,8 @@ class AITools:
                     encoding=encoding,
                     errors='replace'
                 )
+            
+            # CMD
             elif shell_type == 'cmd':
                 full_command = ['cmd', '/c', command]
                 result = subprocess.run(
@@ -860,7 +1236,66 @@ class AITools:
                     encoding=encoding,
                     errors='replace'
                 )
-            elif shell_type in ['bash', 'sh', 'zsh']:
+            
+            # Git Bash
+            elif shell_type == 'git-bash':
+                git_bash_paths = [
+                    r'C:\Program Files\Git\bin\bash.exe',
+                    r'C:\Program Files (x86)\Git\bin\bash.exe',
+                    os.path.expanduser(r'~\AppData\Local\Programs\Git\bin\bash.exe')
+                ]
+                git_bash = None
+                for path in git_bash_paths:
+                    if os.path.exists(path):
+                        git_bash = path
+                        break
+                
+                if git_bash:
+                    result = subprocess.run(
+                        [git_bash, '-c', command],
+                        capture_output=True,
+                        text=True,
+                        timeout=600,
+                        encoding=encoding,
+                        errors='replace'
+                    )
+                else:
+                    return {"success": False, "error": "Git Bash not found"}
+            
+            # WSL
+            elif shell_type == 'wsl':
+                result = subprocess.run(
+                    ['wsl', 'bash', '-c', command],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                    encoding=encoding,
+                    errors='replace'
+                )
+            
+            # Cygwin
+            elif shell_type == 'cygwin':
+                cygwin_paths = [r'C:\cygwin64\bin\bash.exe', r'C:\cygwin\bin\bash.exe']
+                cygwin_bash = None
+                for path in cygwin_paths:
+                    if os.path.exists(path):
+                        cygwin_bash = path
+                        break
+                
+                if cygwin_bash:
+                    result = subprocess.run(
+                        [cygwin_bash, '-c', command],
+                        capture_output=True,
+                        text=True,
+                        timeout=600,
+                        encoding=encoding,
+                        errors='replace'
+                    )
+                else:
+                    return {"success": False, "error": "Cygwin not found"}
+            
+            # Unix shells (bash, sh, zsh, fish, ksh, tcsh, dash)
+            elif shell_type in ['bash', 'sh', 'zsh', 'fish', 'ksh', 'tcsh', 'dash']:
                 result = subprocess.run(
                     command,
                     shell=True,
@@ -871,6 +1306,8 @@ class AITools:
                     encoding=encoding,
                     errors='replace'
                 )
+            
+            # Default fallback
             else:
                 result = subprocess.run(
                     command,
@@ -989,7 +1426,7 @@ class ZAIShell:
     """Main shell interface"""
     
     def __init__(self):
-        self.memory = MemoryManager()
+        self.memory = ChromaMemoryManager()
         self.brain = AIBrain(self.memory)
         self.start_time = datetime.datetime.now()
         self.request_count = 0
@@ -1001,15 +1438,18 @@ class ZAIShell:
         mode = self.brain.current_mode
         mode_config = ModeManager.get_mode_config(mode)
         thinking = "ON" if self.brain.thinking_enabled else "OFF"
+        offline = "OFFLINE" if self.brain.offline_mode else "ONLINE"
         
         user_name = self.memory.memory["user"]["name"]
         first_seen = self.memory.memory["user"]["first_seen"][:10]
         stats = self.memory.memory["stats"]
         
+        memory_type = "ChromaDB" if hasattr(self.memory, 'use_chromadb') and self.memory.use_chromadb else "JSON"
+        
         print(f"""
 {Fore.CYAN}╔════════════════════════════════════════════════════════════╗
-║        🚀 ZAI v5.0.1 - Advanced AI Assistant               ║
-║         Memory • Modes • Thinking • Security              ║
+║        🚀 ZAI v6.0 - Advanced AI Assistant               ║
+║    Memory • Modes • Thinking • Security • Offline         ║
 ╚════════════════════════════════════════════════════════════╝{Style.RESET_ALL}
 
 {Fore.GREEN}🤖 I'm ZAI, your COMPLETELY FREE AI assistant{Style.RESET_ALL}
@@ -1018,6 +1458,8 @@ class ZAIShell:
 {Fore.MAGENTA}🔧 Auto-retry with DIFFERENT methods on errors{Style.RESET_ALL}
 {Fore.CYAN}🐚 Can use {len(ctx['available_shells'])} different shells: {shells}{Style.RESET_ALL}
 {Fore.BLUE}🧠 Thinking Mode: {thinking}{Style.RESET_ALL}
+{Fore.BLUE}🌐 Network Mode: {offline}{Style.RESET_ALL}
+{Fore.BLUE}💾 Memory System: {memory_type}{Style.RESET_ALL}
 
 {Fore.YELLOW}👤 User: {user_name} (since {first_seen}){Style.RESET_ALL}
 {Fore.YELLOW}📊 Stats: {stats['total_requests']} requests | {stats['successful_actions']} success | {stats['failed_actions']} failed{Style.RESET_ALL}
@@ -1033,10 +1475,14 @@ class ZAIShell:
 
 {Fore.BLUE}🔧 Commands:{Style.RESET_ALL}
   {Fore.CYAN}Modes:{Style.RESET_ALL} normal, eco, lightning (permanent switch)
+  {Fore.CYAN}Network:{Style.RESET_ALL} switch offline, switch online
   {Fore.CYAN}Mode Override:{Style.RESET_ALL} "your command eco" (single use)
   {Fore.CYAN}Thinking:{Style.RESET_ALL} thinking on/off
-  {Fore.CYAN}Force Execute:{Style.RESET_ALL} "your command --force" or "-f"
-  {Fore.CYAN}Memory:{Style.RESET_ALL} memory clear/show
+  {Fore.CYAN}Safety Flags:{Style.RESET_ALL}
+    --safe / -s  : Block dangerous commands
+    --show       : Preview actions without executing
+    --force / -f : Skip confirmation
+  {Fore.CYAN}Memory:{Style.RESET_ALL} memory clear/show/search [query]
   {Fore.CYAN}Other:{Style.RESET_ALL} clear, exit
 
 {Fore.MAGENTA}🎯 Whatever you want, however you want - I'll handle it!{Style.RESET_ALL}
@@ -1047,12 +1493,27 @@ class ZAIShell:
     def parse_command(self, user_input):
         """Parse command for special flags and mode overrides"""
         force = False
+        safe_mode = False
+        show_only = False
         temp_mode = None
         
-        # Check for --force or -f
-        if user_input.endswith(' --force') or user_input.endswith(' -f'):
+        # Check for flags (case insensitive)
+        user_input_lower = user_input.lower()
+        
+        if '--force' in user_input_lower or ' -f' in user_input_lower:
             force = True
-            user_input = user_input.replace(' --force', '').replace(' -f', '')
+            # Remove both variations
+            user_input = user_input.replace('--force', '').replace('--FORCE', '')
+            user_input = user_input.replace(' -f', '').replace(' -F', '')
+        
+        if '--safe' in user_input_lower or ' -s' in user_input_lower:
+            safe_mode = True
+            user_input = user_input.replace('--safe', '').replace('--SAFE', '')
+            user_input = user_input.replace(' -s', '').replace(' -S', '')
+        
+        if '--show' in user_input_lower:
+            show_only = True
+            user_input = user_input.replace('--show', '').replace('--SHOW', '')
         
         # Check for mode override at the end
         words = user_input.split()
@@ -1062,7 +1523,7 @@ class ZAIShell:
                 temp_mode = last_word
                 user_input = ' '.join(words[:-1])
         
-        return user_input, force, temp_mode
+        return user_input.strip(), force, safe_mode, show_only, temp_mode
     
     def run(self):
         """Main loop"""
@@ -1088,6 +1549,15 @@ class ZAIShell:
                     if user_input.lower() in ['clear', 'cls']:
                         os.system('cls' if os.name == 'nt' else 'clear')
                         self.show_banner()
+                        continue
+                    
+                    # Handle offline/online switch
+                    if user_input.lower() == 'switch offline':
+                        self.brain.switch_to_offline()
+                        continue
+                    
+                    if user_input.lower() == 'switch online':
+                        self.brain.switch_to_online()
                         continue
                     
                     # Handle mode switching
@@ -1125,6 +1595,18 @@ class ZAIShell:
                             for msg in history:
                                 role = "👤 You" if msg['role'] == 'user' else "🤖 ZAI"
                                 print(f"{role}: {msg['message'][:100]}...")
+                        elif 'search' in user_input.lower():
+                            query = user_input.replace('memory search', '').strip()
+                            if query and hasattr(self.memory, 'search_memory'):
+                                results = self.memory.search_memory(query)
+                                if results:
+                                    print(f"\n{Fore.CYAN}Search results for '{query}':{Style.RESET_ALL}")
+                                    for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
+                                        print(f"\n{Fore.YELLOW}{meta['role']}: {doc[:150]}...{Style.RESET_ALL}")
+                                else:
+                                    print(f"\n{Fore.YELLOW}No results found{Style.RESET_ALL}")
+                            else:
+                                print(f"\n{Fore.YELLOW}Usage: memory search <query>{Style.RESET_ALL}")
                         else:
                             stats = self.memory.memory["stats"]
                             print(f"\n{Fore.CYAN}Memory Stats:{Style.RESET_ALL}")
@@ -1134,7 +1616,7 @@ class ZAIShell:
                         continue
                     
                     # Parse command for special flags
-                    parsed_input, force, temp_mode = self.parse_command(user_input)
+                    parsed_input, force, safe_mode, show_only, temp_mode = self.parse_command(user_input)
                     
                     # Apply temporary mode if specified
                     if temp_mode:
@@ -1142,11 +1624,23 @@ class ZAIShell:
                         mode_config = ModeManager.get_mode_config(temp_mode)
                         print(f"\n{Fore.MAGENTA}⚡ Using {temp_mode.upper()} mode for this command{Style.RESET_ALL}")
                     
+                    # Show mode indicators
+                    indicators = []
+                    if safe_mode:
+                        indicators.append(f"{Fore.GREEN}🛡️ SAFE MODE{Style.RESET_ALL}")
+                    if show_only:
+                        indicators.append(f"{Fore.CYAN}👁️ SHOW MODE (Preview Only){Style.RESET_ALL}")
+                    if force:
+                        indicators.append(f"{Fore.RED}⚡ FORCE MODE{Style.RESET_ALL}")
+                    
+                    if indicators:
+                        print(f"\n{' | '.join(indicators)}")
+                    
                     self.request_count += 1
                     start = time.time()
                     
                     print(f"\n{Fore.YELLOW}🧠 Thinking...{Style.RESET_ALL}")
-                    self.brain.think_and_act(parsed_input, force_execute=force)
+                    self.brain.think_and_act(parsed_input, force_execute=force, safe_mode=safe_mode, show_only=show_only)
                     
                     duration = time.time() - start
                     print(f"\n{Fore.WHITE}⏱️ {duration:.2f} seconds{Style.RESET_ALL}")
