@@ -14,6 +14,9 @@ Most AI tools give up when something fails. ZAI doesn't. It analyzes errors, swi
 # 1. Install dependencies
 pip install google-generativeai colorama psutil
 
+# Optional: For advanced features
+pip install chromadb transformers torch accelerate
+
 # 2. Get free API key from https://aistudio.google.com/app/api-keys
 
 # 3. Set environment variable
@@ -66,22 +69,24 @@ You: ✓ File created perfectly, zero manual intervention
 
 | Feature | ZAI Shell | ShellGPT | Open Interpreter | GitHub Copilot CLI | AutoGPT |
 |---------|-----------|----------|------------------|-------------------|---------|
-| **Self-Healing Retry** | ✅ 3-attempt auto-fix | ❌ Manual retry | ❌ Manual retry | ❌ Manual retry | ⚠️ Loop-prone |
-| **Thinking Mode** | ✅ See AI's logic | ❌ Black box | ❌ Black box | ❌ Black box | ⚠️ Self-feedback |
-| **Persistent Memory** | ✅ Cross-session | ✅ Chat sessions | ✅ Session-based | ⚠️ Context only | ✅ Long-term |
-| **Multi-Mode System** | ✅ Eco/Lightning/Normal | ❌ Single mode | ❌ Single mode | ❌ Single mode | ❌ Single mode |
-| **Force Mode** | ✅ Bypass approval | ❌ N/A | ⚠️ Unsafe auto | ⚠️ Policy-based | ⚠️ Fully autonomous |
-| **Shell Intelligence** | ✅ Auto-detect & switch | ✅ Cross-shell | ✅ Multi-language | ✅ Terminal native | ❌ Not terminal-focused |
-| **Installation** | ✅ 2 commands | ✅ `pip install` | ⚠️ Docker setup | ⚠️ Auth required | ❌ Complex platform |
-| **Cost** | ✅ Free tier friendly | ✅ API costs | ✅ API costs | ⚠️ Limited free tier | ❌ High API costs |
-| **Local Execution** | ✅ Terminal-based | ✅ Terminal-based | ✅ Full system access | ✅ Repository aware | ⚠️ Platform/Server |
+| **Self-Healing Retry** | ✅ 5-attempt auto-fix with different strategies | ❌ Manual retry | ❌ Manual retry | ❌ Manual retry | ⚠️ Autonomous but loop-prone |
+| **Thinking Mode** | ✅ Toggle AI reasoning display | ❌ Black box | ❌ Black box | ❌ Black box | ⚠️ Self-feedback only |
+| **Persistent Memory** | ✅ ChromaDB vector search + JSON fallback | ✅ Chat sessions only | ✅ Session-based | ⚠️ Session context only | ✅ Long-term with platform |
+| **Multi-Mode System** | ✅ Eco/Lightning/Normal + temporary override | ❌ Single mode | ❌ Single mode | ⚠️ Model selection | ❌ Single platform |
+| **Safety Controls** | ✅ --safe (blocks dangerous), --show (preview), --force (skip confirm) | ❌ Basic confirmation | ⚠️ Unsafe auto-run mode | ✅ Approval-based | ⚠️ Fully autonomous risk |
+| **Offline Mode** | ✅ Full local AI (Phi-2) with GPU/CPU support | ❌ API only | ❌ API only | ❌ API only | ❌ API/Platform only |
+| **Shell Intelligence** | ✅ 13 shells: CMD, PowerShell, PWSH, Git Bash, WSL, Cygwin, Bash, Zsh, Fish, Ksh, Tcsh, Dash, Sh | ✅ Cross-shell | ✅ Multi-language runtime | ✅ Terminal native | ❌ Platform-focused |
+| **Smart Path Correction** | ✅ Auto-converts Desktop/ to real user paths | ❌ Manual paths | ✅ Full system access | ⚠️ Repository-aware | ⚠️ Platform-dependent |
+| **Installation** | ✅ 2 commands | ✅ `pip install` | ⚠️ Docker/setup required | ⚠️ Auth + npm required | ❌ Complex Docker platform |
+| **Cost** | ✅ Free tier friendly + offline mode | ⚠️ API costs | ⚠️ API costs | ⚠️ Paid subscription only | ❌ High API + platform costs |
+| **Local Execution** | ✅ Direct terminal access | ✅ Terminal-based | ✅ Full system access | ✅ Repository integration | ⚠️ Platform/Server-based |
 
 ### Real-World Performance
 
 **Stress Test Results (44 Tasks):**
 - ✅ **95.45% success rate** (42/44 completed)
 - ✅ **100% success** in file operations, code generation, system info
-- ✅ **Auto-retry up to 3 times** with different strategies
+- ✅ **Auto-retry up to 5 times** with different strategies per attempt
 - ✅ **Zero critical errors** - handles failures gracefully
 - ❌ Only 2 failures due to API quota limits (not ZAI errors)
 
@@ -91,20 +96,21 @@ Traditional AI: "List all Python files"
 └─ Error → You manually fix → Retry → Maybe works
 
 ZAI: "List all Python files"
-└─ Error → Auto-switches encoding → Error → Tries different shell → Success ✓
-    Time: 22.8 seconds | Your effort: Zero
+└─ Error → Auto-switches encoding → Error → Tries different shell → Error → Changes command approach → Success ✓
+    Time: 22.8 seconds | Your effort: Zero | Retry attempts: 3/5
 ```
 
 ---
 
 ## ✨ Key Features
 
-### 🔧 Self-Healing Auto-Retry
+### 🔧 Self-Healing Auto-Retry (Upgraded to 5 Attempts)
 When commands fail, ZAI automatically:
-- Analyzes errors (encoding, permissions, wrong shell)
-- Switches between shells (PowerShell ↔ CMD ↔ bash)
+- Analyzes errors (encoding, permissions, wrong shell, command syntax)
+- Switches between shells (PowerShell ↔ CMD ↔ bash ↔ Git Bash ↔ WSL)
 - Changes encoding (UTF-8 → CP850 → CP1254)
-- Tries up to 3 times with different strategies
+- Tries completely different command approaches
+- Attempts up to **5 times** with different strategies each time
 
 **Real Example:**
 ```bash
@@ -126,17 +132,34 @@ Attempt 3: [CMD] Use py launcher
 └─ ✅ Success! Python 3.11.8
 ```
 
-### 🐚 Multi-Shell Intelligence
-- **Windows:** CMD, PowerShell, PowerShell Core
-- **Linux/Mac:** bash, sh, zsh
-- Auto-selects best shell for each task
-- Can use different shells in same request
+### 🐚 Universal Shell Support (13 Shells)
+ZAI supports the most comprehensive shell ecosystem:
+
+**Windows:**
+- CMD (Standard command prompt)
+- PowerShell (Windows management)
+- PWSH (PowerShell Core - cross-platform)
+- Git Bash (Unix commands on Windows)
+- WSL (Full Linux subsystem)
+- Cygwin (Unix tools for Windows)
+
+**Linux/Mac:**
+- Bash (Standard Linux shell)
+- Sh (Basic shell)
+- Zsh (Modern macOS default)
+- Fish (User-friendly with auto-suggestions)
+- Ksh (Korn shell)
+- Tcsh (Tenex C shell)
+- Dash (Debian Almquist shell)
+
+Auto-selects best shell for each task and can use different shells in the same request.
 
 ### 🧠 Thinking Mode
 See exactly how ZAI solves problems:
 ```bash
-thinking on   # Show AI's reasoning
-thinking off  # Hide thinking process
+thinking on   # Show AI's reasoning process
+thinking off  # Hide thinking for faster responses
+thinking      # Check current status
 ```
 
 Example output:
@@ -144,59 +167,124 @@ Example output:
 🧠 Thinking Process:
 
 1. User Intent: "Analyze system performance" - needs CPU, memory, disk
-2. Security: Read-only operations, safe
-3. Method: PowerShell Get-Process for rich data
-4. Plan: Top 5 CPU → Top 5 memory → Disk usage
-5. Potential Issues: Large output → limit results
+2. Security Assessment: Read-only operations, safe to proceed
+3. Method Selection: PowerShell Get-Process for rich data
+4. Shell Selection: PowerShell for Windows integration
+5. Plan: Top 5 CPU → Top 5 memory → Disk usage
+6. Potential Issues: Large output → limit results to top 5
+7. Alternative Approaches: If fails, try CMD with tasklist
 
 ⚡ Executing 3 action(s)...
 ```
 
-### ⚡ Three Speed Modes
+### ⚡ Three Speed Modes with Temporary Override
 
-| Mode | Best For | Speed (file deletion) |
-|------|----------|----------|
-| **Lightning** | Maximum speed | ⚡⚡⚡ (1.90s) |
-| **Eco** | Token-efficient | ⚡⚡ (1.99s) |
-| **Normal** | Highest accuracy | ⚡ (3.01s) |
+| Mode | Model | Best For | Speed | Token Usage |
+|------|-------|----------|-------|-------------|
+| **Lightning** | gemini-flash-lite (Temp 0.1) | Maximum speed, no explanations | ⚡⚡⚡ (1.90s) | Ultra-low |
+| **Eco** | gemini-flash-lite (Temp 0.3) | Token-efficient with command chaining | ⚡⚡ (1.99s) | Low |
+| **Normal** | gemini-flash (Temp 0.7) | Highest accuracy and detail | ⚡ (3.01s) | Standard |
 
 ```bash
-lightning     # Switch permanently
-"command" eco # Single command override
+# Permanent mode switch
+lightning
+eco
+normal
+
+# Temporary mode override (single command)
+"organize my desktop files" eco
+"create complex Python script" normal
+"delete temp files" lightning
 ```
 
 ![Lightning Mode Performance](assets/lightningtest.gif)
 *Lightning mode: 48 PDFs organized into desktop folder in 3.34 seconds*
 
-### 💾 Persistent Memory
-Remembers across sessions:
-- Your preferences and paths
-- Last 50 conversations
+### 🌐 Offline Mode (NEW!)
+Run ZAI completely locally without internet:
+
+**Features:**
+- Uses Microsoft Phi-2 (2.7 billion parameters)
+- Automatic GPU (CUDA) or CPU detection
+- First-time model download (~5GB)
+- Privacy-focused: Your data never leaves your machine
+- No API costs, no rate limits
+
+**Usage:**
+```bash
+switch offline    # Enable offline mode (downloads model if needed)
+switch online     # Return to API mode
+
+# Offline mode automatically uses:
+# - GPU if available (RTX, GTX cards)
+# - CPU if no GPU (slower but works)
+```
+
+### 💾 Persistent Memory with Vector Search
+**Dual memory system:**
+
+**ChromaDB (Vector Memory):**
+- Semantic search in conversation history
+- Find related topics even with different words
+- Example: Search "calculator" finds math-related conversations
+
+```bash
+memory search "web scraper"     # Finds all scraping conversations
+memory search "system analysis" # Finds performance checks
+```
+
+**JSON Fallback:**
+- Automatic fallback if ChromaDB not installed
+- Stores last 50 conversations
 - Usage statistics
 
+**Memory Commands:**
 ```bash
-# Monday
-You: "My project is in C:\Dev\WebApp"
-ZAI: ✓ Remembered
-
-# Wednesday (new session)
-You: "Add README to my project"
-ZAI: ✓ Created C:\Dev\WebApp\README.md
+memory          # Show statistics
+memory show     # View recent history
+memory search "query"  # Semantic search (ChromaDB only)
+memory clear    # Reset history
 ```
 
-### 🛡️ Safety with Force Mode
-- **Default:** Confirms every action
-- **Force mode:** Skip confirmation with `--force` or `-f`
+### 🛡️ Advanced Safety Controls
+**Three security flags:**
 
+**--safe / -s** (Blocks dangerous commands)
 ```bash
-"delete temp files" --force  # Executes immediately
+"delete all files" --safe
+# ⛔ BLOCKED: 'rm -rf' detected - dangerous operation
 ```
 
-### 📁 Advanced File Operations
-- Any file type (.py, .txt, .md, .json, .csv, .html, .css, .js)
-- Auto-detects encoding
+Blocks: `rm -rf`, `format`, `reboot`, `shutdown`, `dd if=`, `chmod 777`, `mkfs`, fork bombs, and more.
+
+**--show** (Preview without executing)
+```bash
+"organize desktop" --show
+# Shows: What will be done
+# ├─ Create folder: Organized_2025
+# ├─ Move 45 files
+# └─ Rename 12 duplicates
+# ⚠️ No actions executed
+```
+
+**--force / -f** (Skip confirmation)
+```bash
+"delete temp files" --force
+# Executes immediately without asking
+```
+
+### 📁 Advanced File Operations with Smart Path Correction
+**Smart Path Fix:**
+- Automatically converts `Desktop/file.txt` → `C:\Users\YourName\Desktop\file.txt`
+- Works with `Documents/`, `Downloads/`, etc.
+- Handles both forward and backslashes
+
+**Supported Operations:**
+- Any file type (.py, .txt, .md, .json, .csv, .html, .css, .js, .pdf)
+- Auto-detects best encoding
 - Creates parent directories automatically
 - Handles special characters in any language
+- Binary and text mode support
 
 ### 💻 Multi-Task Execution
 Execute multiple operations in one request:
@@ -204,29 +292,40 @@ Execute multiple operations in one request:
 You: "Analyze system and save report to desktop"
 
 ⚡ Executing 5 action(s)...
-[1/5] Create report file... ✓
-[2/5] Get CPU processes... ✓
-[3/5] Get memory stats... ✓
-[4/5] Get disk usage... ✓
-[5/5] Get network info... ✓
+[1/5] [PowerShell] Create report file... ✓
+[2/5] [PowerShell] Get CPU processes... ✓
+[3/5] [PowerShell] Get memory stats... ✓
+[4/5] [PowerShell] Get disk usage... ✓
+[5/5] [PowerShell] Get network info... ✓
 
 📊 Result: 5/5 successful
 ⏱️ 15.39 seconds
 ```
 
 ### 🎨 Code Generation
-Generate code in any language:
+Generate code in any language with automatic file creation:
 - Python, JavaScript, HTML/CSS
 - Bash, PowerShell, Batch
-- C++, Java, and more
+- C++, Java, Rust, Go
+- And more
 
 ```bash
-"Write a web scraper"
-→ ✓ Created scraper.py (120 lines with error handling)
+"Write a web scraper that saves to CSV"
+→ ✓ Created scraper.py (145 lines with error handling)
 
-"Create calculator webpage"
-→ ✓ Created calculator.html (HTML + CSS + JS)
+"Create a calculator webpage with modern design"
+→ ✓ Created calculator.html (HTML + CSS + JS inline)
+
+"Generate a PowerShell script to backup user files"
+→ ✓ Created backup.ps1 (75 lines with logging)
 ```
+
+### 🔍 Intelligent JSON Parsing
+**Surgical JSON Extractor:**
+- Counts brackets mathematically `{ }` to find valid JSON
+- Extracts JSON even if AI adds extra text
+- Handles `<thinking>` tags and explanations gracefully
+- Never fails due to formatting issues
 
 ---
 
@@ -234,20 +333,29 @@ Generate code in any language:
 
 ### Prerequisites
 - Python 3.8+
-- Internet connection
+- Internet connection (for online mode)
 
 ### Quick Setup
 
-**1. Install dependencies:**
+**1. Install core dependencies:**
 ```bash
 pip install google-generativeai colorama psutil
 ```
 
-**2. Get free Gemini API key:**
+**2. Optional dependencies for advanced features:**
+```bash
+# For ChromaDB vector memory (recommended)
+pip install chromadb
+
+# For offline mode (AI runs locally)
+pip install transformers torch accelerate
+```
+
+**3. Get free Gemini API key:**
 - Visit: https://aistudio.google.com/app/api-keys
 - Create API Key
 
-**3. Set environment variable:**
+**4. Set environment variable:**
 
 **Windows (PowerShell):**
 ```powershell
@@ -266,7 +374,7 @@ echo 'export GEMINI_API_KEY="your_key_here"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-**4. Run ZAI:**
+**5. Run ZAI:**
 ```bash
 git clone https://github.com/TaklaXBR/zai-shell.git
 cd zaishell
@@ -275,70 +383,50 @@ python zaishell.py
 
 ---
 
-## 📚 Usage Examples
-
-### Basic Operations
-```bash
-"list files in current directory"
-"show disk space"
-"create hello.txt with 'Hello World'"
-"delete old.txt"
-"what's my IP address"
-```
-
-### File Management
-```bash
-"create project folder MyApp"
-"add README.md and main.py to MyApp"
-"delete all .tmp files"
-"move all images to Pictures folder"
-```
-
-### System Administration
-```bash
-"analyze system performance"
-"show top 5 CPU processes"
-"check disk usage"
-"list installed programs"
-```
-
-### Development
-```bash
-"create Python web scraper with error handling"
-"generate HTML landing page with CSS"
-"write bash backup script"
-"setup virtual environment and requirements.txt"
-```
-
-### Multi-Step Tasks
-```bash
-"create project structure: src/, tests/, docs/, README"
-"find all log files older than 30 days and archive them"
-"scan directory, count file types, create summary"
-```
-
----
-
 ## 📋 Command Reference
 
+### Mode Control
 ```bash
-# Mode Control
-normal          # Balanced mode
-eco             # Token-efficient
-lightning       # Maximum speed
+normal          # Balanced mode (gemini-2.5-flash, Temp 0.7)
+eco             # Token-efficient (gemini-flash-lite, Temp 0.3)
+lightning       # Maximum speed (gemini-flash-lite, Temp 0.1)
 
-# Thinking Mode
-thinking on     # Show reasoning
+# Temporary mode override for single command
+"your command" eco
+"your command" lightning
+"your command" normal
+```
+
+### Network Mode
+```bash
+switch offline  # Use local AI model (Phi-2)
+switch online   # Use Gemini API
+```
+
+### Thinking Mode
+```bash
+thinking on     # Show AI reasoning
 thinking off    # Hide reasoning
 thinking        # Check status
+```
 
-# Memory
-memory          # Show stats
-memory show     # View history
-memory clear    # Reset history
+### Memory Management
+```bash
+memory          # Show statistics
+memory show     # View recent history
+memory search "query"  # Semantic search (requires ChromaDB)
+memory clear    # Reset conversation history
+```
 
-# Special
---force, -f     # Skip confirmation
+### Safety Flags
+```bash
+--safe, -s      # Block dangerous commands
+--show          # Preview actions without executing
+--force, -f     # Skip confirmation prompts
+```
+
+### Other Commands
+```bash
 clear, cls      # Clear screen
 exit, quit      # Exit ZAI
 ```
@@ -347,10 +435,13 @@ exit, quit      # Exit ZAI
 
 ## 🐛 Known Limitations
 
-- Non-English characters: 90% success with auto-retry
-- Thinking mode can be verbose (toggle off when not needed)
-- Force mode bypasses safety checks
-- Gemini free tier has rate limits (use eco mode)
+- Offline mode requires ~5GB download for first use
+- Offline mode is slower on CPU (GPU recommended)
+- Non-English characters: 95% success with 5-retry system
+- Thinking mode can be verbose in Normal mode (use Lightning for speed)
+- Force mode bypasses all safety checks
+- Gemini free tier has rate limits (use eco mode or offline mode)
+- ChromaDB memory requires separate installation
 
 ---
 
@@ -361,12 +452,14 @@ exit, quit      # Exit ZAI
 - 💡 Suggest features
 - 🔧 Submit pull requests
 - 📝 Improve documentation
+- 🌍 Add support for more shells
 
 **Good first issues:**
-- Add fish/nushell shell support
-- Improve encoding detection
-- Create automated tests
-- Add code templates
+- Add Nushell/Fish configuration examples
+- Improve encoding detection for other languages
+- Create automated test suite
+- Add code templates for common tasks
+- Optimize offline model performance
 
 ---
 
