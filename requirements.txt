@@ -1,7 +1,14 @@
 google-generativeai
 colorama
 psutil
-chromadb
+requests
+beautifulsoup4
+duckduckgo-search
+Pillow
+pyautogui
+keyboard
+websocket-client
 transformers
 torch
 accelerate
+chromadb
