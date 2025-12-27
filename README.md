@@ -470,7 +470,7 @@ All major features have been successfully implemented:
 
 > **Note:** v7.0 represents a complete feature set. Future updates will focus on stability, performance, and user experience improvements.
 
-> *Have a feature request? [Open an issue](https://github.com/TaklaXBR/zaishell/issues) to discuss!*
+> *Have a feature request? [Open an issue](https://github.com/TaklaXBR/zai-shell/issues) to discuss!*
 
 ---
 
