@@ -596,6 +596,6 @@ Open source, free to use and modify.
 
 ⭐ **Star this repo if ZAI saved your terminal session!** ⭐
 
-**Made with ❤️ by a 15-year-old developer**
+**Made with by a 15-year-old developer ❤️**
 
 </div>
