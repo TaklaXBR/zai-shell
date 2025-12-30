@@ -348,6 +348,20 @@ You: "Analyze system and save report to Desktop"
 
 ---
 
+## 🔐 Privacy & Telemetry
+
+ZAI Shell uses **privacy-first, anonymous telemetry** to improve stability, performance, and feature development.  
+No commands, file contents, file paths, personal data, keystrokes, or screen content are ever collected.
+
+Telemetry can be disabled at any time:
+```bash
+telemetry off
+````
+
+Full details: [`PRIVACY.md`](PRIVACY.md)
+
+---
+
 ## 📥 Installation
 
 ### Prerequisites
