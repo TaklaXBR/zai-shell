@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import time
 import datetime
@@ -53,6 +54,17 @@ except ImportError:
         DDGS_AVAILABLE = True
     except ImportError:
         DDGS_AVAILABLE = False
+
+try:
+    from posthog import Posthog
+    POSTHOG_AVAILABLE = True
+except ImportError:
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'posthog', '-q'])
+        from posthog import Posthog
+        POSTHOG_AVAILABLE = True
+    except:
+        POSTHOG_AVAILABLE = False
 
 init(autoreset=True)
 
@@ -1102,6 +1114,136 @@ class ChromaMemoryManager:
         return self.json_manager.get_research_enabled()
 
 
+class TelemetryManager:
+    """PostHog telemetry manager - Privacy-first analytics"""
+    
+    POSTHOG_API_KEY = 'phc_CXvoppyzIO8O9wbYIheua9XqjBbmWylvuO928J6vI0a'
+    POSTHOG_HOST = 'https://us.i.posthog.com'
+    
+    def __init__(self, memory_manager=None):
+        self.enabled = True
+        self.memory = memory_manager
+        self._user_id = None
+        self._initialized = False
+        self._posthog = None
+        self._init_posthog()
+    
+    def _init_posthog(self):
+        if not POSTHOG_AVAILABLE:
+            self._initialized = False
+            return
+        try:
+            self._posthog = Posthog(self.POSTHOG_API_KEY, host=self.POSTHOG_HOST)
+            self._user_id = self._get_or_create_user_id()
+            self._initialized = True
+        except:
+            self._initialized = False
+    
+    def _get_or_create_user_id(self):
+        user_id_file = ".zaishell_telemetry_id"
+        try:
+            if os.path.exists(user_id_file):
+                with open(user_id_file, 'r') as f:
+                    return f.read().strip()
+            new_id = str(uuid.uuid4())
+            with open(user_id_file, 'w') as f:
+                f.write(new_id)
+            return new_id
+        except:
+            return str(uuid.uuid4())
+    
+    def is_enabled(self):
+        return self.enabled and self._initialized and POSTHOG_AVAILABLE
+    
+    def set_enabled(self, enabled):
+        self.enabled = enabled
+        if self.memory:
+            self.memory.memory["telemetry_enabled"] = enabled
+            self.memory.save_memory()
+    
+    def _get_platform_info(self):
+        shell_name = "unknown"
+        if os.name == 'nt':
+            if os.getenv('PSModulePath'):
+                shell_name = "powershell"
+            else:
+                shell_name = "cmd"
+        else:
+            shell_name = os.getenv('SHELL', 'bash').split('/')[-1]
+        return {
+            "os": platform.system(),
+            "os_version": platform.version(),
+            "shell": shell_name
+        }
+    
+    def track_event(self, event_name, properties=None):
+        if not self.is_enabled() or not self._posthog:
+            return
+        try:
+            event_props = self._get_platform_info()
+            if properties:
+                event_props.update(properties)
+            self._posthog.capture(self._user_id, event_name, event_props)
+            self._posthog.flush()
+        except:
+            pass
+    
+    def track_interface_preference(self, is_gui):
+        self.track_event("interface_preference", {
+            "interface_type": "gui" if is_gui else "terminal"
+        })
+    
+    def track_mode_preference(self, mode_name):
+        self.track_event("mode_preference", {
+            "mode": mode_name
+        })
+    
+    def track_auto_retry(self, retry_count, max_retries, final_success):
+        self.track_event("auto_retry", {
+            "retry_count": retry_count,
+            "max_retries": max_retries,
+            "final_success": final_success
+        })
+    
+    def track_task_failure(self, is_complete_failure):
+        self.track_event("task_failure", {
+            "complete_failure": is_complete_failure
+        })
+    
+    def track_safe_mode_block(self, blocked_command_type):
+        self.track_event("safe_mode_block", {
+            "blocked_type": blocked_command_type
+        })
+    
+    def track_model_usage(self, is_offline):
+        self.track_event("model_usage", {
+            "model_type": "offline" if is_offline else "online"
+        })
+    
+    def track_thinking_usage(self, is_enabled):
+        self.track_event("thinking_usage", {
+            "thinking_enabled": is_enabled
+        })
+    
+    def track_force_command(self):
+        self.track_event("force_command_used")
+    
+    def track_session_start(self, mode, is_offline, gui_enabled, research_enabled, shell_type="unknown"):
+        self.track_event("session_start", {
+            "initial_mode": mode,
+            "offline_mode": is_offline,
+            "gui_enabled": gui_enabled,
+            "research_enabled": research_enabled,
+            "primary_shell": shell_type
+        })
+    
+    def track_session_end(self, request_count, duration_seconds):
+        self.track_event("session_end", {
+            "total_requests": request_count,
+            "duration_seconds": duration_seconds
+        })
+
+
 class MemoryManager:
     """Manages persistent memory storage"""
     
@@ -1452,8 +1594,9 @@ class ModeManager:
 class AIBrain:
     """AI Brain - COMPLETELY FREE, no restrictions"""
     
-    def __init__(self, memory_manager):
+    def __init__(self, memory_manager, telemetry=None):
         self.memory = memory_manager
+        self.telemetry = telemetry
         self.current_mode = self.memory.get_mode()
         self.thinking_enabled = self.memory.get_thinking()
         
@@ -1663,6 +1806,8 @@ Only include GUI steps if clicking/typing in a GUI application is truly needed."
                         'shell': 'cmd',
                         'encoding': 'utf-8'
                     })
+                    if result.get('success') and self.telemetry:
+                        self.telemetry.track_interface_preference(is_gui=False)
                     
                 elif step_type == 'gui':
                     if not self.gui_bridge or not self.gui_bridge.is_available():
@@ -1693,6 +1838,8 @@ Only include GUI steps if clicking/typing in a GUI application is truly needed."
                                 result = self.gui_bridge.execute_action(step)
                             
                             if result.get('success'):
+                                if self.telemetry:
+                                    self.telemetry.track_interface_preference(is_gui=True)
                                 break
                             
                             if gui_retry < max_gui_retries:
@@ -1776,6 +1923,8 @@ Only include GUI steps if clicking/typing in a GUI application is truly needed."
         
         self.offline_mode = True
         self.memory.set_offline_mode(True)
+        if self.telemetry:
+            self.telemetry.track_model_usage(True)
         print(f"\n{Fore.GREEN}✓ OFFLINE mode activated{Style.RESET_ALL}")
         print(f"{Fore.CYAN}→ All operations will use local AI model{Style.RESET_ALL}")
         return True
@@ -1785,6 +1934,8 @@ Only include GUI steps if clicking/typing in a GUI application is truly needed."
         self.offline_mode = False
         self.memory.set_offline_mode(False)
         self.model = self._create_model()
+        if self.telemetry:
+            self.telemetry.track_model_usage(False)
         print(f"\n{Fore.GREEN}✓ ONLINE mode activated{Style.RESET_ALL}")
         return True
     
@@ -1798,6 +1949,8 @@ Only include GUI steps if clicking/typing in a GUI application is truly needed."
             self.memory.set_mode(new_mode)
             if not self.offline_mode:
                 self.model = self._create_model()
+            if self.telemetry:
+                self.telemetry.track_mode_preference(new_mode)
         else:
             self.temp_mode = new_mode
         
@@ -1939,6 +2092,12 @@ REMEMBER: System has {len(self.context['available_shells'])} different shells: {
             
         except Exception as e:
             return self._handle_error(e, user_message)
+        finally:
+            if self.telemetry and retry_count == 0:
+                active_mode = self._get_active_mode()
+                self.telemetry.track_mode_preference(active_mode)
+                self.telemetry.track_model_usage(self.offline_mode)
+                self.telemetry.track_thinking_usage(self.thinking_enabled)
     
     def _build_system_instruction(self, main_content, safe_mode=False):
         """Build system instruction"""
@@ -2130,6 +2289,8 @@ START!"""
                     blocked = self._check_dangerous_commands(actions)
                     if blocked:
                         print(f"\n{Fore.RED}⛔ BLOCKED by safe mode: {blocked}{Style.RESET_ALL}")
+                        if self.telemetry:
+                            self.telemetry.track_safe_mode_block(blocked)
                         return {"success": False, "message": f"Blocked: {blocked}"}
                 
                 # Show actions and ask for confirmation (unless force)
@@ -2149,6 +2310,8 @@ START!"""
                         
                         if not result.get('success') and retry_count < self.max_retries:
                             print(f"\n{Fore.YELLOW}🔧 Error detected, trying alternative method ({retry_count + 1}/{self.max_retries})...{Style.RESET_ALL}")
+                            if self.telemetry:
+                                self.telemetry.track_auto_retry(retry_count + 1, self.max_retries, False)
                             
                             retry_context = {
                                 'action_type': action.get('type', 'unknown'),
@@ -2162,6 +2325,9 @@ START!"""
                         
                         elif not result.get('success') and retry_count >= self.max_retries:
                             print(f"\n{Fore.RED}❌ Max retry limit ({self.max_retries}) reached. Stopping.{Style.RESET_ALL}")
+                            if self.telemetry:
+                                self.telemetry.track_task_failure(True)
+                                self.telemetry.track_auto_retry(retry_count, self.max_retries, False)
                             break
                         
                         time.sleep(0.1)
@@ -2186,6 +2352,9 @@ START!"""
                 if results:
                     color = Fore.GREEN if success_count == len(results) else Fore.YELLOW
                     print(f"{color}📊 Result: {success_count}/{len(results)} successful{Style.RESET_ALL}")
+                
+                if retry_count > 0 and success_count == len(results) and self.telemetry:
+                    self.telemetry.track_auto_retry(retry_count, self.max_retries, True)
                 
                 if retry_count == 0 or not any(not r.get('success') for r in results):
                     self.memory.add_conversation("assistant", response)
@@ -2312,6 +2481,8 @@ START!"""
                 result = self.tools.handle_file(details)
             elif action_type == 'command':
                 result = self.tools.run_command(details)
+                if result.get('success') and self.telemetry:
+                    self.telemetry.track_interface_preference(is_gui=False)
             elif action_type == 'code':
                 result = self.tools.create_code(details)
             elif action_type == 'info':
@@ -2595,9 +2766,20 @@ class ZAIShell:
     
     def __init__(self):
         self.memory = ChromaMemoryManager()
-        self.brain = AIBrain(self.memory)
+        self.telemetry = TelemetryManager(self.memory.json_manager)
+        self.brain = AIBrain(self.memory, self.telemetry)
         self.start_time = datetime.datetime.now()
         self.request_count = 0
+        if self.telemetry.is_enabled():
+            shells = self.brain.context.get('available_shells', [])
+            primary_shell = shells[0] if shells else "unknown"
+            self.telemetry.track_session_start(
+                self.brain.current_mode,
+                self.brain.offline_mode,
+                self.brain.gui_enabled,
+                self.brain.research_enabled,
+                primary_shell
+            )
     
     def show_banner(self):
         """Startup banner v7.0"""
@@ -2624,7 +2806,7 @@ class ZAIShell:
         
         print(f"""
 {Fore.CYAN}╔════════════════════════════════════════════════════════════╗
-║            🚀 ZAI v7.0.1 - Advanced AI Shell                 ║
+║            🚀 ZAI v7.0.2 - Advanced AI Shell                 ║
 ║     Terminal • GUI • Research • Image • P2P Sharing        ║
 ╚════════════════════════════════════════════════════════════╝{Style.RESET_ALL}
 
@@ -2791,6 +2973,8 @@ class ZAIShell:
                     
                     if user_input.lower() in ['exit', 'quit', 'bye']:
                         duration = datetime.datetime.now() - self.start_time
+                        if self.telemetry.is_enabled():
+                            self.telemetry.track_session_end(self.request_count, duration.total_seconds())
                         print(f"\n{Fore.CYAN}Goodbye! Processed {self.request_count} requests.{Style.RESET_ALL}")
                         print(f"{Fore.BLUE}Duration: {str(duration).split('.')[0]}{Style.RESET_ALL}")
                         break
@@ -2832,10 +3016,14 @@ class ZAIShell:
                                 continue
                             self.brain.gui_enabled = True
                             self.memory.set_gui_enabled(True)
+                            if self.telemetry.is_enabled():
+                                self.telemetry.track_interface_preference(True)
                             print(f"\n{Fore.GREEN}✓ GUI automation ENABLED{Style.RESET_ALL}")
                         elif 'off' in user_input.lower():
                             self.brain.gui_enabled = False
                             self.memory.set_gui_enabled(False)
+                            if self.telemetry.is_enabled():
+                                self.telemetry.track_interface_preference(False)
                             print(f"\n{Fore.YELLOW}✓ GUI automation DISABLED{Style.RESET_ALL}")
                         else:
                             status = "ON" if self.brain.gui_enabled else "OFF"
@@ -2869,14 +3057,31 @@ class ZAIShell:
                         if 'on' in user_input.lower():
                             self.brain.thinking_enabled = True
                             self.memory.set_thinking(True)
+                            if self.telemetry.is_enabled():
+                                self.telemetry.track_thinking_usage(True)
                             print(f"\n{Fore.GREEN}✓ Thinking mode ENABLED{Style.RESET_ALL}")
                         elif 'off' in user_input.lower():
                             self.brain.thinking_enabled = False
                             self.memory.set_thinking(False)
+                            if self.telemetry.is_enabled():
+                                self.telemetry.track_thinking_usage(False)
                             print(f"\n{Fore.YELLOW}✓ Thinking mode DISABLED{Style.RESET_ALL}")
                         else:
                             status = "ON" if self.brain.thinking_enabled else "OFF"
                             print(f"\n{Fore.CYAN}Thinking mode is currently: {status}{Style.RESET_ALL}")
+                        continue
+                    
+                    # Handle telemetry toggle
+                    if user_input.lower().startswith('telemetry'):
+                        if 'on' in user_input.lower():
+                            self.telemetry.set_enabled(True)
+                            print(f"\n{Fore.GREEN}✓ Telemetry ENABLED{Style.RESET_ALL}")
+                        elif 'off' in user_input.lower():
+                            self.telemetry.set_enabled(False)
+                            print(f"\n{Fore.YELLOW}✓ Telemetry DISABLED{Style.RESET_ALL}")
+                        else:
+                            status = "ON" if self.telemetry.is_enabled() else "OFF"
+                            print(f"\n{Fore.CYAN}Telemetry is currently: {status}{Style.RESET_ALL}")
                         continue
                     
                     # Handle memory commands
@@ -2925,6 +3130,8 @@ class ZAIShell:
                         indicators.append(f"{Fore.CYAN}PREVIEW{Style.RESET_ALL}")
                     if force:
                         indicators.append(f"{Fore.RED}FORCE{Style.RESET_ALL}")
+                        if self.telemetry.is_enabled():
+                            self.telemetry.track_force_command()
                     
                     if self.brain.p2p_sharing.is_connected and self.brain.p2p_sharing.safe_mode_always:
                         indicators.append(f"{Fore.MAGENTA}SHARING-SAFE{Style.RESET_ALL}")
