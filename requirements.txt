@@ -13,3 +13,4 @@ torch
 accelerate
 chromadb
 posthog
+ddgs
