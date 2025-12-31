@@ -12,3 +12,4 @@ transformers
 torch
 accelerate
 chromadb
+posthog
