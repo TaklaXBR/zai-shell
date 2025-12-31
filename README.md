@@ -97,7 +97,7 @@ You: ✓ Zero manual work
 | **Offline Mode** | ✅ Phi-2 local (GPU/CPU) | ❌ API only | ✅ Local models via LM Studio/Ollama | ❌ Requires GitHub account | ❌ OpenAI API required |
 | **Shell Support** | ✅ 13 shells (CMD/PS/Bash/WSL/etc) | ✅ Cross-platform shells | ✅ Python/JS/Shell runtimes | ✅ Bash/PowerShell/Zsh | ⚠️ Shell agnostic (Python app) |
 | **Smart Path Fix** | ✅ Desktop/ → real paths | ❌ Manual paths | ✅ Full filesystem access | ✅ File system operations | ⚠️ Through file operations |
-| **Installation** | ✅ pip install (3 packages) | ✅ pip install (1 package) | ✅ pip install (simple) | ⚠️ npm or curl installer | ⚠️ Docker + API keys required |
+| **Installation** | ✅ pip install (4 packages) | ✅ pip install (1 package) | ✅ pip install (simple) | ⚠️ npm or curl installer | ⚠️ Docker + API keys required |
 | **Cost** | ✅ Free tier + offline mode | ⚠️ API costs | ⚠️ API costs | ❌ Paid subscription required | ⚠️ High API usage costs |
 | **Hybrid Workflows** | ✅ Terminal + GUI seamlessly | ❌ Terminal only | ✅ Full system + GUI control | ❌ Terminal + GitHub only | ⚠️ Web browser + terminal |
 | **Custom Functions** | ✅ Built-in + extensible | ✅ Plugin system + custom functions | ✅ Python execution unlimited | ✅ MCP integrations (extensible) | ✅ Plugin ecosystem |
@@ -152,7 +152,7 @@ You: "Get OS info and Python version"
 └─ ✅ Success! Python 3.11.8
 ```
 
-### 🖱️ GUI Automation Bridge (NEW in v7.0)
+### 🖱️ GUI Automation Bridge
 Control desktop applications with AI:
 - **PyAutoGUI integration** for clicks, typing, hotkeys
 - **AI-powered element detection** using screen analysis
@@ -176,7 +176,7 @@ Execute? (Y/N): Y
 ✓ All steps completed
 ```
 
-### 🔍 Web Research Engine (NEW in v7.0)
+### 🔍 Web Research Engine
 AI-powered web search with synthesis:
 - **DuckDuckGo integration** for live searches
 - **AI query optimization** (converts any language → English keywords)
@@ -196,7 +196,7 @@ Found 5 results:
 AI: Based on search results, Python 3.14.2 is the latest version Python
 ```
 
-### 📸 Image Analysis (NEW in v7.0)
+### 📸 Image Analysis
 Gemini Vision for screenshots and images:
 - **Error screenshot analysis** with solutions
 - **Supports**: PNG, JPG, JPEG, GIF, BMP, WEBP
@@ -214,33 +214,122 @@ Cause: Missing dependency
 Solution: Run 'pip install requests'
 ```
 
-### 🌐 P2P Terminal Sharing (NEW in v7.0)
-Collaborate in real-time:
+### 🌐 P2P Terminal Sharing
+Real-time multi-client collaboration with intelligent command handling:
+
+**Features:**
 - **TCP socket-based** with ngrok support for global access
-- **Safe mode enforced**: Host approves all commands
-- **Local & Remote**: Works on same network or worldwide
+- **Safe mode enforced**: Host approves all commands before execution
+- **Natural Language Processing**: Helpers write commands in natural language, ZAI on host side interprets and converts them to shell commands
+- **Local & Remote**: Works on same network or worldwide via ngrok
 - **Session logs** tracking
+- **Multi-client support**: Multiple helpers can connect simultaneously
 
-**Usage:**
+**How It Works:**
+
+**1. Host starts session:**
 ```bash
-# Host (your computer)
-share
-→ Address: 192.168.1.10:5757
+You >>> share start
+Enter your name (press Enter for 'Host'): 
+=======================================================
+   TERMINAL SHARING STARTED - MULTI-CLIENT P2P
+=======================================================
+Your Name: Host
+Local Address: 192.168.1.22:5757
+FOR GLOBAL ACCESS:
+  1. Run: ngrok tcp 5757
+  2. Share the ngrok URL
+Commands:
+  share message <text>  - Send message to all
+  share list            - List connected clients
+  share approve/reject  - Handle commands
+  share end             - End session
+Waiting for connections...
+```
 
-# For global access:
+**2. Helper connects:**
+```bash
+You >>> share connect 192.168.1.22:5757
+Using saved name: Host1
+Connecting to 192.168.1.22:5757...
+=======================================================
+   CONNECTED - MULTI-CLIENT P2P
+=======================================================
+Your Name: Host1
+Host: Host @ 192.168.1.22:5757
+Commands:
+  share message <text>  - Send message to all
+  share send <command>  - Send command (needs approval)
+  share logs            - Request host logs
+  share end             - Disconnect
+```
+
+**3. Helper sends natural language command:**
+```bash
+# Helper side
+You >>> share send Zai how many files are there on the desktop in total?
+Command sent, waiting for approval...
+```
+
+**4. Host receives and approves:**
+```bash
+# Host side
+==================================================
+COMMAND from Host1:
+Zai how many files are there on the desktop in total?
+==================================================
+Type 'share approve' or 'share reject'
+
+You >>> share approve
+Approved: Zai how many files are there on the desktop in tot...
+Executing: Zai how many files are there on the desktop in total?
+Understanding: The user wants to know the total number of files on the desktop.
+Executing 1 action(s)...
+[1/1] [powershell] Count the total number of files on the desktop.... OK
+ZAI: There are 24 files on the desktop in total.
+Result: 1/1 successful
+```
+
+**5. Helper receives results:**
+```bash
+# Helper side
+Command approved!
+Executing...
+
+ZAI: There are 24 files on the desktop in total.
+```
+
+**Key Advantage - NLP Command Translation:**
+Helpers don't need to know shell syntax. They write commands in plain natural language (in ANY language), and ZAI on the host side automatically interprets and converts them to appropriate shell commands. This makes remote assistance accessible to non-technical users.
+
+**Multi-Client Example:**
+```bash
+# Host sees multiple connections
+==================================================
+New connection: Alice from 192.168.1.30
+Total connected: 1
+==================================================
+
+==================================================
+New connection: Bob from 192.168.1.45
+Total connected: 2
+==================================================
+
+You >>> share list
+Connected clients (2):
+  1. Alice (192.168.1.30)
+  2. Bob (192.168.1.45)
+```
+
+**Global Access with ngrok:**
+```bash
+# On host machine
 ngrok tcp 5757
-→ Share: 0.tcp.ngrok.io:12345
+→ Forwarding: tcp://0.tcp.ngrok.io:12345 -> localhost:5757
 
-# Helper (remote computer)
-share connect 0.tcp.ngrok.io:12345
-
-# Helper sends command
-share send "list files"
-
-# Host approves
-share approve
-→ Executing: list files
-✓ Results sent to helper
+# Share with helpers worldwide
+Helper >>> share connect 0.tcp.ngrok.io:12345
+→ Connected from anywhere in the world!
 ```
 
 ### 🐚 13 Shell Support
@@ -276,6 +365,9 @@ thinking      # Check status
 | **Lightning** | flash-lite (T=0.0) | Max speed, no chat | ⚡⚡⚡ 1.90s |
 | **Eco** | flash-lite (T=0.3) | Token-efficient | ⚡⚡ 1.99s |
 | **Normal** | flash (T=0.7) | Highest accuracy | ⚡ 3.01s |
+
+![Lightning Mode Performance](assets/lightningtest.gif)
+**Lightning mode in action:** Creates a ‘pdfs’ folder on the desktop and moves a total of 48 PDFs into the ‘pdfs’ folder in just 3.34 seconds.
 
 ```bash
 # Permanent switch
@@ -356,7 +448,7 @@ No commands, file contents, file paths, personal data, keystrokes, or screen con
 Telemetry can be disabled at any time:
 ```bash
 telemetry off
-````
+```
 
 Full details: [`PRIVACY.md`](PRIVACY.md)
 
@@ -422,58 +514,55 @@ python zaishell.py
 
 ---
 
-## 📋 Command Reference
+## 📋 Complete Command Reference
 
-### Mode Control
 ```bash
-normal          # Balanced (flash, T=0.7)
-eco             # Token-efficient (flash-lite, T=0.3)
-lightning       # Maximum speed (flash-lite, T=0.1)
-
-# Temporary override
-"command" eco
-"command" lightning
-```
-
-### Feature Toggles
-```bash
+# === FEATURE TOGGLES ===
 gui on/off          # GUI automation
 research on/off     # Web research
 thinking on/off     # AI reasoning display
-```
 
-### Network Mode
-```bash
+# === MODE CONTROL ===
+normal              # Balanced (flash, T=0.7)
+eco                 # Token-efficient (flash-lite, T=0.3)
+lightning           # Maximum speed (flash-lite, T=0.1)
+
+# Temporary mode override
+"command" eco
+"command" lightning
+
+# === NETWORK MODE ===
 switch offline      # Local Phi-2 model
 switch online       # Gemini API
-```
 
-### Memory
-```bash
+# === MEMORY ===
 memory              # Statistics
 memory show         # Recent history
 memory search "query"  # Semantic search (ChromaDB)
 memory clear        # Reset
-```
 
-### Terminal Sharing
-```bash
-share                    # Start hosting
-share connect IP:PORT    # Connect to host
-share send <command>     # Send command (helper)
-share approve/reject     # Handle commands (host)
-share status/logs/end    # Utilities
-```
+# === TERMINAL SHARING (P2P) ===
+# Host commands
+share start         # Start hosting session
+share message <text>  # Send message to all
+share list          # List connected clients
+share approve       # Approve pending command
+share reject        # Reject pending command
+share end           # End session
 
-### Safety Flags
-```bash
---safe, -s      # Block dangerous
---show          # Preview only
+# Helper commands
+share connect IP:PORT  # Connect to host
+share send <command>   # Send command (needs host approval)
+share message <text>   # Send message to all
+share logs            # Request host logs
+share end             # Disconnect
+
+# === SAFETY FLAGS ===
+--safe, -s      # Block dangerous commands
+--show          # Preview without executing
 --force, -f     # Skip confirmation
-```
 
-### Utility
-```bash
+# === UTILITY ===
 clear, cls      # Clear screen
 exit, quit      # Exit ZAI
 ```
@@ -515,17 +604,32 @@ You: "download Python installer and run it"
 You: "open Chrome, go to GitHub, and clone a repo"
 ```
 
-### Terminal Sharing
+### Terminal Sharing with NLP
 ```bash
-# Scenario: Help a colleague remotely
-Host: share
+# Scenario: Remote system administration
+Host: share start
 → Address: 192.168.1.100:5757
 
-Colleague: share connect 192.168.1.100:5757
-Colleague: share send "check server logs"
+Helper: share connect 192.168.1.100:5757
 
+# Helper uses natural language (any language works!)
+Helper: share send "Zai how many files are there on the desktop in total?"
+
+# Host receives and approves
 Host: share approve
-→ Command executed, results sent
+→ ZAI interprets: "Count desktop files"
+→ Executes: Get-ChildItem -Path $env:USERPROFILE\Desktop -File | Measure-Object | Select-Object -ExpandProperty Count
+→ Result: "There are 24 files on the desktop in total."
+
+# Helper receives the result automatically
+Helper: Command approved! Executing...
+        ZAI: There are 24 files on the desktop in total.
+
+# Works with complex requests too
+Helper: share send "Find all log files modified in last 24 hours"
+Host: share approve
+→ ZAI converts natural language → shell command
+→ Results sent back to helper
 ```
 
 ---
@@ -538,29 +642,6 @@ Host: share approve
 - **Free API tier**: Rate limits (use eco/offline mode)
 - **ChromaDB memory**: Separate installation
 - **Terminal sharing**: Requires port forwarding for remote access
-
----
-
-## 🗺️ Roadmap
-
-### Completed (v7.0 - December 27, 2025)
-
-- ✅ **Hybrid GUI & CLI**: Full terminal + GUI automation
-- ✅ **Visual Error Analysis**: Screenshot-based debugging with Gemini Vision
-- ✅ **P2P Terminal Sharing**: TCP + ngrok for global collaboration
-- ✅ **Live Web Research**: DuckDuckGo integration with AI synthesis
-
-### Future Focus
-
-**v7.x Maintenance:**
-- Performance optimizations
-- Enhanced error recovery
-- Memory management improvements
-- Cross-platform compatibility
-- Documentation and examples
-- Bug fixes and stability
-
-> ZAI v7.0 represents a feature-complete release. Future updates focus on reliability and user experience.
 
 ---
 
