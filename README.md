@@ -12,7 +12,7 @@ ZAI doesn't give up when errors occur. It analyzes failures, switches strategies
 
 ```bash
 # 1. Core dependencies (required)
-pip install google-generativeai colorama psutil
+pip install google-generativeai colorama psutil posthog
 
 # 2. Get free API key
 # Visit: https://aistudio.google.com/app/api-keys
