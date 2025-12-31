@@ -117,7 +117,7 @@ Your preference is saved and persists across sessions.
 ## Open Source Transparency
 
 ZAI Shell is **open source**. You can:
-- Review the telemetry code in `zaishelltest.py` (TelemetryManager class)
+- Review the telemetry code in `zaishell.py` (TelemetryManager class)
 - Verify exactly what is being sent
 - Modify or remove telemetry in your local installation
 - Contribute improvements to make it even more privacy-focused
@@ -137,3 +137,4 @@ If you have any questions about privacy or telemetry:
 
 **Last Updated**: December 2025  
 **Version**: v1.0
+
