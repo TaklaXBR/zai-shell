@@ -525,7 +525,7 @@ thinking on/off     # AI reasoning display
 # === MODE CONTROL ===
 normal              # Balanced (flash, T=0.7)
 eco                 # Token-efficient (flash-lite, T=0.3)
-lightning           # Maximum speed (flash-lite, T=0.1)
+lightning           # Maximum speed (flash-lite, T=0.0)
 
 # Temporary mode override
 "command" eco
