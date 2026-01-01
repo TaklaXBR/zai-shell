@@ -14,3 +14,4 @@ accelerate
 chromadb
 posthog
 ddgs
+cryptography
