@@ -40,7 +40,39 @@ DANGEROUS_COMMANDS = [
     'rm -rf', 'sudo rm', 'del /f', 'format', 'reboot', 'shutdown',
     'init 0', 'init 6', 'poweroff', 'halt', 'dd if=', 'mkfs',
     ':(){:|:&};:', 'chmod -R 777 /', 'chown -R', '> /dev/sda',
-    'mv /* ', 'rm -r /', 'sudo dd', 'fdisk', 'wipefs'
+    'mv /* ', 'rm -r /', 'sudo dd', 'fdisk', 'wipefs',
+    'Remove-Item', 'IEX', 'Invoke-Expression', 'Invoke-WebRequest',
+    'erase', 'rd /s', 'deltree', 'rmdir /s',
+    'find / -delete', 'find . -delete', 'xargs rm',
+    'reg add', 'reg delete', 'sc delete', 'sc stop',
+    'net user', 'net localgroup', 'netsh',
+    'certutil -decode', 'bitsadmin',
+    'taskkill /f', 'wmic process', 'Stop-Process',
+    'Start-Process', 'New-Object Net.WebClient',
+    'DownloadString', 'DownloadFile',
+    'Invoke-Command', 'Enter-PSSession',
+    'rm -r', 'del /q', 'del /s',
+]
+
+DANGEROUS_PATTERNS = [
+    r'rm\s+-r',
+    r'del\s+/[fqs]',
+    r':\s*\(\s*\)\s*\{',
+    r'IEX\s*[\(\[]',
+    r'Invoke-Expression',
+    r'Remove-Item.*-Recurse',
+    r'Remove-Item.*-Force',
+    r'>\s*/dev/',
+    r'>\s*\\\\',
+    r'\|\s*rm',
+    r'\|\s*del',
+    r'wget.*\|.*sh',
+    r'curl.*\|.*bash',
+    r'-encodedcommand',
+    r'-enc\s+',
+    r'powershell.*-e\s+',
+    r'cmd.*/c.*del',
+    r'cmd.*/c.*format',
 ]
 
 TERMINAL_CAPABILITIES = {
@@ -448,7 +480,7 @@ class AITools:
     """Tools that AI can use"""
     
     def handle_file(self, details):
-        """File operations with Smart Path Correction"""
+        """File operations with Smart Path Correction and Security"""
         try:
             path = details.get('path', '')
             content = details.get('content', '')
@@ -457,6 +489,10 @@ class AITools:
             
             if not path:
                 return {"success": False, "error": "File path not specified"}
+            
+            security_check = self._validate_path_security(path)
+            if security_check:
+                return {"success": False, "error": security_check}
             
             path_lower = path.lower()
             if path_lower.startswith("desktop/") or path_lower.startswith("desktop\\"):
@@ -469,6 +505,10 @@ class AITools:
                 path = os.path.join(real_docs, clean_name)
             
             path = os.path.normpath(os.path.expanduser(path))
+            
+            final_check = self._validate_path_security(path)
+            if final_check:
+                return {"success": False, "error": final_check}
             
             directory = os.path.dirname(path)
             if directory and not os.path.exists(directory):
@@ -492,6 +532,45 @@ class AITools:
             
         except Exception as e:
             return {"success": False, "error": f"File error: {str(e)}"}
+    
+    def _validate_path_security(self, path):
+        if not path:
+            return None
+        
+        if '..' in path:
+            return "Path traversal blocked: contains .."
+        
+        if path.startswith('\\\\') or path.startswith('//'):
+            return "UNC network path blocked"
+        
+        path_lower = path.lower()
+        blocked_paths = [
+            'windows\\system32', 'windows/system32',
+            'system32\\drivers', 'system32/drivers', 
+            '\\windows\\', '/windows/',
+            '/etc/', '/dev/', '/proc/', '/sys/',
+            'program files', 'programdata',
+        ]
+        for blocked in blocked_paths:
+            if blocked in path_lower:
+                return f"System path blocked: {blocked}"
+        
+        reserved = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 
+                   'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 
+                   'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
+        basename = os.path.basename(path).upper().split('.')[0]
+        if basename in reserved:
+            return f"Reserved device name blocked: {basename}"
+        
+        if len(path) > 260:
+            return "Path too long (max 260 characters)"
+        
+        invalid_chars = '<>"|?*'
+        for char in invalid_chars:
+            if char in os.path.basename(path):
+                return f"Invalid character in filename: {char}"
+        
+        return None
     
     def run_command(self, details):
         """Execute system command - optimized"""
@@ -693,7 +772,17 @@ class AIBrain:
         return self._p2p_sharing
     
     def detect_intent(self, user_message: str) -> Dict:
-        intents = {'needs_research': False, 'needs_image_analysis': False, 'needs_gui': False, 'needs_hybrid': False, 'image_path': None, 'research_query': None}
+        intents = {
+            'needs_research': False, 
+            'needs_image_analysis': False, 
+            'needs_gui': False, 
+            'needs_hybrid': False, 
+            'needs_p2p': False,
+            'p2p_action': None,
+            'image_path': None, 
+            'research_query': None
+        }
+        
         for fmt in SUPPORTED_IMAGE_FORMATS:
             pattern = rf'[\w/\\:.-]+\.{fmt}\b'
             match = re.search(pattern, user_message, re.IGNORECASE)
@@ -701,10 +790,67 @@ class AIBrain:
                 intents['needs_image_analysis'] = True
                 intents['image_path'] = match.group(0)
                 break
+        
         if self.offline_mode or not self.model:
             return intents
+        
+        if self._p2p_sharing and self._p2p_sharing.is_connected:
+            p2p_context = self._p2p_sharing.get_p2p_context()
+            available_actions = p2p_context.get('available_actions', [])
+            users = p2p_context.get('connected_users', [])
+            
+            p2p_prompt = f'''Analyze this user message in P2P sharing context.
+User message: "{user_message}"
+
+P2P SESSION INFO:
+- Role: {"HOST" if p2p_context.get('is_host') else "HELPER"}
+- Connected Users: {', '.join(users)}
+- Available Actions: {', '.join(available_actions)}
+- Pending Commands: {p2p_context.get('pending_commands', 0)}
+- Pending Files: {p2p_context.get('pending_files', 0)}
+
+DETERMINE if this is a P2P command. Return JSON:
+{{
+    "is_p2p_command": true/false,
+    "action": "action_name or null",
+    "params": {{"target_user": "username or null", "message": "text or null", "file_path": "path or null", "command": "cmd or null"}}
+}}
+
+ACTIONS:
+- show_logs: user wants to see terminal logs
+- show_chat: user wants to see chat history  
+- list_users: user wants to see connected users
+- show_status: user wants P2P status
+- send_message: user wants to send a message (extract message text)
+- send_file: user wants to send a file (extract file_path and target_user if mentioned)
+- send_command: user wants to send/run command on another user's machine (extract command and target_user)
+- approve_command: user wants to approve pending command
+- reject_command: user wants to reject pending command
+- accept_file: user wants to accept incoming file
+- deny_file: user wants to reject incoming file
+
+If NOT a P2P command, set is_p2p_command to false.'''
+
+            try:
+                response = self.model.generate_content(p2p_prompt)
+                text = response.text
+                start = text.find('{')
+                end = text.rfind('}') + 1
+                if start >= 0 and end > start:
+                    result = json.loads(text[start:end])
+                    if result.get('is_p2p_command'):
+                        intents['needs_p2p'] = True
+                        intents['p2p_action'] = {
+                            'action': result.get('action'),
+                            'params': result.get('params', {})
+                        }
+                        return intents
+            except Exception:
+                pass
+        
         if not self.gui_enabled and not self.research_enabled:
             return intents
+        
         try:
             intent_prompt = f'Analyze: "{user_message}"\nReturn JSON: {{"needs_research": bool, "needs_gui": bool, "needs_hybrid": bool}}\nRules: needs_research=user asks current info/versions; needs_gui=clicking UI; needs_hybrid=both terminal+GUI'
             response = self.model.generate_content(intent_prompt)
@@ -1074,10 +1220,27 @@ Before creating your JSON response, you MUST perform detailed analysis inside <t
 '''
         recent_history = self.memory.get_recent_history()
         history_text = self._format_history(recent_history)
+        
+        p2p_context = ""
+        if self._p2p_sharing and self._p2p_sharing.is_connected:
+            p2p_info = self._p2p_sharing.get_p2p_context()
+            role = "HOST" if p2p_info.get('is_host') else "HELPER"
+            users = p2p_info.get('connected_users', [])
+            p2p_context = f"""
+P2P SHARING ACTIVE:
+- Role: {role}
+- Your Name: {p2p_info.get('my_name', 'Unknown')}
+- Connected Users: {', '.join(users)}
+- Pending Commands: {p2p_info.get('pending_commands', 0)}
+- Pending Files: {p2p_info.get('pending_files', 0)}
+NOTE: You are in a collaborative session. Commands will be visible to team members.
+"""
+        
         return f'''You are ZAI, a COMPLETELY FREE artificial intelligence assistant.
 CURRENT MODE: {active_mode.upper()}{' (OFFLINE)' if self.offline_mode else ''}
 {mode_modifier}
 {safe_mode_text}
+{p2p_context}
 SYSTEM INFORMATION:
 - Operating System: {self.context['os']}
 - Python: {self.context['python']}
@@ -1218,12 +1381,104 @@ START!'''
             return self._handle_error(e, original_request)
     
     def _check_dangerous_commands(self, actions):
+        import unicodedata
+        
+        def normalize_command(cmd):
+            normalized = ''.join(
+                c for c in cmd 
+                if unicodedata.category(c) not in ('Cf', 'Mn', 'Mc', 'Me')
+            )
+            ascii_map = {
+                'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'х': 'x',
+                'А': 'A', 'Е': 'E', 'О': 'O', 'Р': 'P', 'С': 'C', 'Х': 'X',
+                'м': 'm', 'М': 'M', 'і': 'i', 'І': 'I',
+            }
+            for cyrillic, latin in ascii_map.items():
+                normalized = normalized.replace(cyrillic, latin)
+            normalized = ' '.join(normalized.split())
+            return normalized
+        
+        def check_single_content(content, source_type="command"):
+            original = content
+            content = normalize_command(content)
+            content_lower = content.lower()
+            
+            for dangerous in DANGEROUS_COMMANDS:
+                if dangerous.lower() in content_lower:
+                    return f"Dangerous {source_type} detected: {dangerous}"
+            
+            for pattern in DANGEROUS_PATTERNS:
+                if re.search(pattern, content, re.IGNORECASE):
+                    return f"Dangerous pattern detected: {pattern[:30]}..."
+            
+            return None
+        
         for action in actions:
-            if action.get('type') == 'command':
-                content = action.get('details', {}).get('content', '').lower()
-                for dangerous in DANGEROUS_COMMANDS:
-                    if dangerous.lower() in content:
-                        return f"Dangerous command detected: {dangerous}"
+            action_type = action.get('type', '')
+            details = action.get('details', {})
+            
+            if action_type == 'command':
+                content = details.get('content', '')
+                result = check_single_content(content, "command")
+                if result:
+                    return result
+            
+            elif action_type in ('file', 'code'):
+                path = details.get('path', '')
+                file_content = details.get('content', '')
+                
+                path_result = self._check_dangerous_path(path)
+                if path_result:
+                    return path_result
+                
+                if path.lower().endswith(('.bat', '.cmd', '.ps1', '.sh', '.bash')):
+                    result = check_single_content(file_content, "script content")
+                    if result:
+                        return result
+            
+            elif action_type == 'multi':
+                tasks = details.get('tasks', [])
+                for task in tasks:
+                    task_type = task.get('type', '')
+                    task_details = task.get('details', task)
+                    if task_type == 'command':
+                        result = check_single_content(task_details.get('content', ''), "command")
+                        if result:
+                            return result
+        
+        return None
+    
+    def _check_dangerous_path(self, path):
+        if not path:
+            return None
+        
+        dangerous_patterns = ['..', '\\..', '/..']
+        for pattern in dangerous_patterns:
+            if pattern in path:
+                return f"Path traversal detected: {pattern}"
+        
+        system_paths = [
+            'windows\\system32', 'windows/system32',
+            'system32\\drivers', 'system32/drivers',
+            '/etc/passwd', '/etc/shadow', '/etc/hosts',
+            'c:\\windows', 'c:/windows',
+            '/dev/', '/proc/', '/sys/',
+        ]
+        path_lower = path.lower()
+        for sys_path in system_paths:
+            if sys_path in path_lower:
+                return f"System path access blocked: {sys_path}"
+        
+        if path.startswith('\\\\') or path.startswith('//'):
+            return "UNC path blocked for security"
+        
+        reserved_names = ['CON', 'PRN', 'AUX', 'NUL', 
+                         'COM1', 'COM2', 'COM3', 'COM4',
+                         'LPT1', 'LPT2', 'LPT3', 'LPT4']
+        basename = os.path.basename(path).upper().split('.')[0]
+        if basename in reserved_names:
+            return f"Reserved filename blocked: {basename}"
+        
         return None
     
     def _show_actions_preview(self, actions, response):
@@ -1352,7 +1607,7 @@ Only write the response text, nothing else. No JSON, no explanation, just the re
 
 
 class ZAIShell:
-    """Main shell interface v7.0"""
+    """Main shell interface v8.0 - E2E Encryption"""
     
     def __init__(self):
         self.memory = ChromaMemoryManager()
@@ -1388,10 +1643,11 @@ class ZAIShell:
         if self.brain._p2p_sharing and self.brain._p2p_sharing.is_connected:
             code = self.brain._p2p_sharing.share_code
             sharing_line = f"\n{Fore.MAGENTA}Terminal Sharing: ACTIVE ({code}){Style.RESET_ALL}"
+        encryption_status = "ON" if self.brain.p2p_sharing.encryption_enabled else "OFF"
         print(f"""
 {Fore.CYAN}========================================================
-            ZAI v7.0.3 - Advanced AI Shell
-     Terminal | GUI | Research | Image | P2P Sharing
+            ZAI v8.0 - Advanced AI Shell
+   Terminal | GUI | Research | Image | P2P | E2E Crypto
 ========================================================{Style.RESET_ALL}
 
 {Fore.GREEN}I understand natural language in ANY language{Style.RESET_ALL}
@@ -1428,8 +1684,12 @@ class ZAIShell:
         if len(parts) >= 2:
             subcommand = parts[1].lower()
             if subcommand == 'start':
-                port = int(parts[2]) if len(parts) >= 3 else None
+                port = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else None
                 self.brain.p2p_sharing.start_sharing_session(port)
+                return True
+            elif subcommand == 'encrypt':
+                password = parts[2] if len(parts) >= 3 else None
+                self.brain.p2p_sharing.enable_encryption(password)
                 return True
             elif subcommand == 'name' and len(parts) >= 3:
                 new_name = ' '.join(parts[2:])
@@ -1469,22 +1729,54 @@ class ZAIShell:
                 command_text = ' '.join(parts[2:])
                 self.brain.p2p_sharing.send_command(command_text)
                 return True
+            elif subcommand == 'file' and len(parts) >= 3:
+                if not self.brain.p2p_sharing.is_connected:
+                    print(f"{Fore.YELLOW}Not connected to any session{Style.RESET_ALL}")
+                    return True
+                file_path = parts[2]
+                target_user = parts[3] if len(parts) >= 4 else None
+                result = self.brain.p2p_sharing.send_file(file_path, target_user)
+                if not result.get('success'):
+                    print(f"{Fore.RED}File send failed: {result.get('error')}{Style.RESET_ALL}")
+                return True
+            elif subcommand == 'accept':
+                if not self.brain.p2p_sharing.is_connected:
+                    print(f"{Fore.YELLOW}Not connected to any session{Style.RESET_ALL}")
+                    return True
+                save_path = parts[2] if len(parts) >= 3 else None
+                result = self.brain.p2p_sharing.accept_file(save_path)
+                if not result.get('success'):
+                    print(f"{Fore.RED}{result.get('error')}{Style.RESET_ALL}")
+                return True
+            elif subcommand == 'deny':
+                if not self.brain.p2p_sharing.is_connected:
+                    print(f"{Fore.YELLOW}Not connected to any session{Style.RESET_ALL}")
+                    return True
+                self.brain.p2p_sharing.deny_file()
+                return True
             elif subcommand == 'end':
                 self.brain.p2p_sharing.end_session()
                 return True
             elif subcommand == 'status':
                 if self.brain.p2p_sharing.is_connected:
                     role = "HOST" if self.brain.p2p_sharing.is_host else "HELPER"
-                    print(f"\n{Fore.CYAN}=== SHARING STATUS ==={Style.RESET_ALL}")
+                    users = self.brain.p2p_sharing.get_connected_users()
+                    print(f"\n{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}SHARING STATUS{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
                     print(f"{Fore.GREEN}Role: {role}{Style.RESET_ALL}")
                     print(f"{Fore.YELLOW}Your Name: {self.brain.p2p_sharing.my_name}{Style.RESET_ALL}")
                     print(f"{Fore.CYAN}Address: {self.brain.p2p_sharing.share_code}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}Connected Users: {', '.join(users)}{Style.RESET_ALL}")
                     if self.brain.p2p_sharing.is_host:
-                        pending = self.brain.p2p_sharing.get_pending_count()
+                        pending_cmds = self.brain.p2p_sharing.get_pending_count()
+                        pending_files = self.brain.p2p_sharing.get_pending_files_count()
                         with self.brain.p2p_sharing.client_lock:
                             connected = len(self.brain.p2p_sharing.clients)
                         print(f"{Fore.CYAN}Helpers Connected: {connected}{Style.RESET_ALL}")
-                        print(f"{Fore.YELLOW}Pending Commands: {pending}{Style.RESET_ALL}")
+                        print(f"{Fore.YELLOW}Pending Commands: {pending_cmds}{Style.RESET_ALL}")
+                        print(f"{Fore.YELLOW}Pending Files: {pending_files}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
                 else:
                     print(f"\n{Fore.YELLOW}Not connected to any sharing session{Style.RESET_ALL}")
                 return True
@@ -1495,14 +1787,25 @@ class ZAIShell:
                 if self.brain.p2p_sharing.is_host:
                     self.brain.p2p_sharing.list_clients()
                 else:
-                    print(f"{Fore.YELLOW}Only host can list clients{Style.RESET_ALL}")
+                    users = self.brain.p2p_sharing.get_connected_users()
+                    print(f"\n{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}CONNECTED USERS{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
+                    for i, user in enumerate(users):
+                        marker = " (Host)" if i == 0 else (" (You)" if user == self.brain.p2p_sharing.my_name else "")
+                        print(f"  {Fore.GREEN}{i+1}. {user}{marker}{Style.RESET_ALL}")
+                    print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
                 return True
             elif subcommand == 'approve':
                 if self.brain.p2p_sharing.is_host:
                     cmd = self.brain.p2p_sharing.approve_pending(True)
                     if cmd:
                         print(f"{Fore.GREEN}Executing: {cmd}{Style.RESET_ALL}")
-                        self.brain.think_and_act(cmd, force_execute=True, safe_mode=True)
+                        result = self.brain.think_and_act(cmd, force_execute=True, safe_mode=True)
+                        if result.get('results'):
+                            for r in result['results']:
+                                if r.get('output'):
+                                    self.brain.p2p_sharing.broadcast_output(r['output'][:300])
                     else:
                         print(f"{Fore.YELLOW}No pending commands{Style.RESET_ALL}")
                 return True
@@ -1510,39 +1813,56 @@ class ZAIShell:
                 if self.brain.p2p_sharing.is_host:
                     self.brain.p2p_sharing.approve_pending(False)
                 return True
+            elif subcommand == 'users':
+                users = self.brain.p2p_sharing.get_connected_users()
+                print(f"\n{Fore.CYAN}Connected Users: {', '.join(users)}{Style.RESET_ALL}")
+                return True
         self._show_share_help()
         return True
     
     def _show_share_help(self):
         """Show share command help"""
         current_name = self.brain.p2p_sharing.my_name or "Not set"
+        encryption = "ON" if self.brain.p2p_sharing.encryption_enabled else "OFF"
         print(f"""
-{Fore.CYAN}=== TERMINAL SHARING (MULTI-CLIENT P2P) ==={Style.RESET_ALL}
-{Fore.YELLOW}Your Name: {current_name}{Style.RESET_ALL}
+{Fore.CYAN}{'='*55}{Style.RESET_ALL}
+{Fore.CYAN}TERMINAL SHARING (MULTI-CLIENT P2P + E2E ENCRYPTION){Style.RESET_ALL}
+{Fore.CYAN}{'='*55}{Style.RESET_ALL}
+{Fore.YELLOW}Your Name: {current_name} | Encryption: {encryption}{Style.RESET_ALL}
 
 {Fore.GREEN}Session:{Style.RESET_ALL}
-  share start             - Start host session
-  share connect IP:PORT   - Connect to host
-  share end               - End session
+  share start [port]        - Start host session
+  share connect IP:PORT     - Connect to host
+  share encrypt [password]  - Enable E2E encryption (before connect)
+  share end                 - End session
 
-{Fore.GREEN}Chat:{Style.RESET_ALL}
-  share message <text>    - Send message to all
-  share chat              - Show chat history
+{Fore.GREEN}Communication:{Style.RESET_ALL}
+  share message <text>      - Send message to all
+  share chat                - Show chat history
+
+{Fore.GREEN}File Transfer:{Style.RESET_ALL}
+  share file <path> [user]  - Send file (user optional, default: host/broadcast)
+  share accept [path]       - Accept pending file
+  share deny                - Reject pending file
 
 {Fore.GREEN}Commands:{Style.RESET_ALL}
-  share send <command>    - Send command (helper only)
-  share approve/reject    - Handle commands (host only)
+  share send <command>      - Send command (helper only)
+  share approve/reject      - Handle pending commands (host only)
 
 {Fore.GREEN}Info:{Style.RESET_ALL}
-  share name <newname>    - Change your name
-  share status            - Show connection status
-  share list              - List connected clients (host only)
-  share logs              - Show terminal logs
+  share name <newname>      - Change your name
+  share status              - Show connection status
+  share list/users          - List connected users
+  share logs                - Show terminal logs
 
 {Fore.MAGENTA}Global Access (ngrok):{Style.RESET_ALL}
   1. Host: Run 'ngrok tcp 5757'
   2. Share the ngrok URL (e.g., 0.tcp.ngrok.io:12345)
   3. Helper: 'share connect 0.tcp.ngrok.io:12345'
+
+{Fore.YELLOW}E2E Encryption:{Style.RESET_ALL}
+  Both host and helper must run 'share encrypt <same_password>'
+  before starting/connecting to enable encrypted communication.
 """)
     
     def parse_command(self, user_input):
@@ -1730,6 +2050,77 @@ class ZAIShell:
                     self.request_count += 1
                     start = time.time()
                     intents = self.brain.detect_intent(parsed_input)
+                    
+                    if intents['needs_p2p'] and intents['p2p_action']:
+                        p2p_action = intents['p2p_action']
+                        action_type = p2p_action.get('action')
+                        params = p2p_action.get('params', {})
+                        
+                        print(f"\n{Fore.MAGENTA}[P2P Action: {action_type}]{Style.RESET_ALL}")
+                        
+                        if action_type == 'show_logs':
+                            self.brain.p2p_sharing.show_recent_logs()
+                        elif action_type == 'show_chat':
+                            self.brain.p2p_sharing.show_chat_history()
+                        elif action_type == 'list_users':
+                            if self.brain.p2p_sharing.is_host:
+                                self.brain.p2p_sharing.list_clients()
+                            else:
+                                users = self.brain.p2p_sharing.get_connected_users()
+                                print(f"\n{Fore.CYAN}Connected Users: {', '.join(users)}{Style.RESET_ALL}")
+                        elif action_type == 'send_file':
+                            file_path = params.get('file_path', '')
+                            target_user = params.get('target_user')
+                            if file_path:
+                                result = self.brain.p2p_sharing.send_file(file_path, target_user)
+                                if not result.get('success'):
+                                    print(f"{Fore.RED}File send failed: {result.get('error')}{Style.RESET_ALL}")
+                            else:
+                                print(f"{Fore.YELLOW}No file path detected in your message{Style.RESET_ALL}")
+                        elif action_type == 'send_message':
+                            message = params.get('message', '')
+                            if message:
+                                self.brain.p2p_sharing.send_message(message)
+                            else:
+                                print(f"{Fore.YELLOW}No message detected in your input{Style.RESET_ALL}")
+                        elif action_type == 'send_command':
+                            command = params.get('command', '')
+                            target_user = params.get('target_user')
+                            if command:
+                                result = self.brain.p2p_sharing.send_command_to_user(command, target_user)
+                                if not result.get('success'):
+                                    print(f"{Fore.RED}Command send failed: {result.get('error')}{Style.RESET_ALL}")
+                            else:
+                                print(f"{Fore.YELLOW}No command detected in your input{Style.RESET_ALL}")
+                        elif action_type == 'approve_command':
+                            if self.brain.p2p_sharing.is_host:
+                                cmd = self.brain.p2p_sharing.approve_pending(True)
+                                if cmd:
+                                    print(f"{Fore.GREEN}Executing: {cmd}{Style.RESET_ALL}")
+                                    result = self.brain.think_and_act(cmd, force_execute=True, safe_mode=True)
+                                    if result.get('results'):
+                                        for r in result['results']:
+                                            if r.get('output'):
+                                                self.brain.p2p_sharing.broadcast_output(r['output'][:300])
+                                else:
+                                    print(f"{Fore.YELLOW}No pending commands{Style.RESET_ALL}")
+                        elif action_type == 'reject_command':
+                            if self.brain.p2p_sharing.is_host:
+                                self.brain.p2p_sharing.approve_pending(False)
+                        elif action_type == 'accept_file':
+                            save_path = params.get('save_path')
+                            result = self.brain.p2p_sharing.accept_file(save_path)
+                            if not result.get('success'):
+                                print(f"{Fore.RED}{result.get('error')}{Style.RESET_ALL}")
+                        elif action_type == 'deny_file':
+                            self.brain.p2p_sharing.deny_file()
+                        elif action_type == 'show_status':
+                            self.handle_share_command("share status")
+                        
+                        duration = time.time() - start
+                        print(f"\n{Fore.WHITE}{duration:.2f}s{Style.RESET_ALL}")
+                        continue
+                    
                     if intents['needs_image_analysis'] and intents['image_path']:
                         print(f"\n{Fore.CYAN}Analyzing image: {intents['image_path']}{Style.RESET_ALL}")
                         analysis = self.brain.image_analyzer.analyze_image(intents['image_path'])
