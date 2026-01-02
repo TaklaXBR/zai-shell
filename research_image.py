@@ -32,6 +32,7 @@ except ImportError:
         DDGS_AVAILABLE = True
     except ImportError:
         DDGS_AVAILABLE = False
+        DDGS = None
 
 try:
     import google.generativeai as genai

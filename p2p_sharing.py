@@ -19,6 +19,7 @@ except ImportError:
     CRYPTO_AVAILABLE = False
 
 P2P_NAME_FILE = ".zaishell_p2p_name"
+P2P_ENCRYPT_FILE = ".zaishell_p2p_encrypt"
 MAX_FILE_SIZE = 100 * 1024 * 1024
 
 CHUNK_SIZE = 65536
@@ -50,13 +51,43 @@ class P2PTerminalSharing:
         self.connected_users = []
         self.encryption_enabled = False
         self.encryption_key = None
+        self.encryption_key_display = None
         self.fernet = None
+        self.no_ai_mode = False
+        self._load_encryption_state()
     
-    def _generate_session_key(self, password: str = None) -> bytes:
+    def _load_encryption_state(self):
+        try:
+            if os.path.exists(P2P_ENCRYPT_FILE):
+                with open(P2P_ENCRYPT_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if data.get('enabled') and data.get('key'):
+                        self.encryption_key = data['key'].encode('utf-8')
+                        self.encryption_key_display = data.get('key_display', 'saved')
+                        self.fernet = Fernet(self.encryption_key)
+                        self.encryption_enabled = True
+        except Exception:
+            pass
+    
+    def _save_encryption_state(self):
+        try:
+            data = {
+                'enabled': self.encryption_enabled,
+                'key': self.encryption_key.decode('utf-8') if self.encryption_key else None,
+                'key_display': self.encryption_key_display
+            }
+            with open(P2P_ENCRYPT_FILE, 'w', encoding='utf-8') as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+    
+    def _generate_session_key(self, password: str = None) -> Tuple[bytes, str]:
         if not CRYPTO_AVAILABLE:
-            return None
+            return None, None
         if password is None:
-            return Fernet.generate_key()
+            key = Fernet.generate_key()
+            key_display = key.decode('utf-8')[:16] + '...'
+            return key, key_display
         salt = b'zaishell_p2p_salt_v8'
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -65,28 +96,88 @@ class P2PTerminalSharing:
             iterations=100000,
         )
         key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
-        return key
+        key_display = f'password:{password[:8]}...' if len(password) > 8 else f'password:{password}'
+        return key, key_display
     
-    def enable_encryption(self, password: str = None) -> bool:
+    def show_encryption_status(self):
+        print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}ENCRYPTION STATUS{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        status = f"{Fore.GREEN}ON{Style.RESET_ALL}" if self.encryption_enabled else f"{Fore.RED}OFF{Style.RESET_ALL}"
+        print(f"  Status: {status}")
+        if self.encryption_enabled and self.encryption_key_display:
+            print(f"  Key: {Fore.YELLOW}{self.encryption_key_display}{Style.RESET_ALL}")
+        if self.encryption_enabled and self.encryption_key:
+            print(f"  Full Key: {Fore.CYAN}{self.encryption_key.decode('utf-8')}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        print(f"\n{Fore.WHITE}Usage:{Style.RESET_ALL}")
+        print(f"  share encrypt              - Show this status")
+        print(f"  share encrypt on           - Enable with last key or new random")
+        print(f"  share encrypt off          - Disable encryption")
+        print(f"  share encrypt random       - Generate new random key")
+        print(f"  share encrypt <password>   - Use password-based key")
+        print(f"  share encrypt key <key>    - Use specific Fernet key")
+    
+    def enable_encryption(self, mode: str = None) -> bool:
         if not CRYPTO_AVAILABLE:
             print(f"{Fore.YELLOW}Encryption requires 'cryptography' package. Install: pip install cryptography{Style.RESET_ALL}")
             return False
         
-        if self.encryption_enabled:
+        if mode is None:
+            self.show_encryption_status()
+            return self.encryption_enabled
+        
+        if mode.lower() == 'off':
             self.encryption_enabled = False
             self.encryption_key = None
+            self.encryption_key_display = None
             self.fernet = None
+            self._save_encryption_state()
             print(f"{Fore.YELLOW}E2E Encryption: OFF{Style.RESET_ALL}")
             return False
         
-        self.encryption_key = self._generate_session_key(password)
+        if mode.lower() == 'on':
+            if self.encryption_key:
+                self.fernet = Fernet(self.encryption_key)
+                self.encryption_enabled = True
+                self._save_encryption_state()
+                print(f"{Fore.GREEN}E2E Encryption: ON (using saved key){Style.RESET_ALL}")
+                print(f"{Fore.CYAN}Key: {self.encryption_key_display}{Style.RESET_ALL}")
+                return True
+            else:
+                mode = 'random'
+        
+        if mode.lower() == 'random':
+            self.encryption_key, self.encryption_key_display = self._generate_session_key(None)
+            self.fernet = Fernet(self.encryption_key)
+            self.encryption_enabled = True
+            self._save_encryption_state()
+            print(f"{Fore.GREEN}E2E Encryption: ON (Random Key){Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Full Key (share with others):{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{self.encryption_key.decode('utf-8')}{Style.RESET_ALL}")
+            return True
+        
+        if mode.lower().startswith('key:'):
+            try:
+                custom_key = mode[4:].strip().encode('utf-8')
+                self.fernet = Fernet(custom_key)
+                self.encryption_key = custom_key
+                self.encryption_key_display = f'custom:{custom_key.decode()[:16]}...'
+                self.encryption_enabled = True
+                self._save_encryption_state()
+                print(f"{Fore.GREEN}E2E Encryption: ON (Custom Key){Style.RESET_ALL}")
+                return True
+            except Exception as e:
+                print(f"{Fore.RED}Invalid Fernet key: {e}{Style.RESET_ALL}")
+                return False
+        
+        self.encryption_key, self.encryption_key_display = self._generate_session_key(mode)
         self.fernet = Fernet(self.encryption_key)
         self.encryption_enabled = True
-        print(f"{Fore.GREEN}E2E Encryption: ON{Style.RESET_ALL}")
-        if password:
-            print(f"{Fore.CYAN}Password-based key active. Share same password with others.{Style.RESET_ALL}")
-        else:
-            print(f"{Fore.CYAN}Random key generated. Use 'share encrypt <password>' for shared key.{Style.RESET_ALL}")
+        self._save_encryption_state()
+        print(f"{Fore.GREEN}E2E Encryption: ON (Password-based){Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Password: {mode}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Share same password with others to connect.{Style.RESET_ALL}")
         return True
     
     def _encrypt(self, data: str) -> str:
@@ -95,7 +186,7 @@ class P2PTerminalSharing:
         try:
             encrypted = self.fernet.encrypt(data.encode('utf-8'))
             return base64.b64encode(encrypted).decode('utf-8')
-        except:
+        except Exception:
             return data
     
     def _decrypt(self, data: str) -> str:
@@ -105,7 +196,7 @@ class P2PTerminalSharing:
             decoded = base64.b64decode(data.encode('utf-8'))
             decrypted = self.fernet.decrypt(decoded)
             return decrypted.decode('utf-8')
-        except:
+        except Exception:
             return data
     
     def _encrypt_bytes(self, data: bytes) -> bytes:
@@ -113,7 +204,7 @@ class P2PTerminalSharing:
             return data
         try:
             return self.fernet.encrypt(data)
-        except:
+        except Exception:
             return data
     
     def _decrypt_bytes(self, data: bytes) -> bytes:
@@ -121,7 +212,7 @@ class P2PTerminalSharing:
             return data
         try:
             return self.fernet.decrypt(data)
-        except:
+        except Exception:
             return data
     
     def _load_saved_name(self) -> Optional[str]:
@@ -130,7 +221,7 @@ class P2PTerminalSharing:
                 with open(P2P_NAME_FILE, 'r', encoding='utf-8') as f:
                     name = f.read().strip()
                     return name if name else None
-        except:
+        except Exception:
             pass
         return None
     
@@ -138,7 +229,7 @@ class P2PTerminalSharing:
         try:
             with open(P2P_NAME_FILE, 'w', encoding='utf-8') as f:
                 f.write(name)
-        except:
+        except Exception:
             pass
     
     def set_name(self, new_name: str) -> bool:
@@ -168,7 +259,7 @@ class P2PTerminalSharing:
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except:
+        except Exception:
             return "127.0.0.1"
     
     def _get_unique_name(self, requested_name: str) -> str:
@@ -208,9 +299,11 @@ class P2PTerminalSharing:
                     return client_id
         return None
     
-    def start_sharing_session(self, port: int = None, host_name: str = None) -> Dict:
+    def start_sharing_session(self, port: int = None, host_name: str = None, no_ai: bool = False) -> Dict:
         if port:
             self.host_port = port
+        
+        self.no_ai_mode = no_ai
         
         if host_name:
             self.host_name = host_name
@@ -238,11 +331,17 @@ class P2PTerminalSharing:
             self.terminal_logs = []
             self.chat_messages = []
             
+            ai_mode_str = f"{Fore.RED}NO-AI (Direct Execute){Style.RESET_ALL}" if self.no_ai_mode else f"{Fore.GREEN}AI-Assisted{Style.RESET_ALL}"
+            encrypt_str = f"{Fore.GREEN}ON{Style.RESET_ALL}" if self.encryption_enabled else f"{Fore.YELLOW}OFF{Style.RESET_ALL}"
+            
             print(f"\n{Fore.GREEN}{'='*55}{Style.RESET_ALL}")
             print(f"{Fore.GREEN}   TERMINAL SHARING STARTED - MULTI-CLIENT P2P{Style.RESET_ALL}")
             print(f"{Fore.GREEN}{'='*55}{Style.RESET_ALL}")
             print(f"\n{Fore.YELLOW}Your Name: {self.host_name}{Style.RESET_ALL}")
             print(f"{Fore.CYAN}Local Address: {Fore.YELLOW}{self.share_code}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Mode: {ai_mode_str} | Encryption: {encrypt_str}{Style.RESET_ALL}")
+            if self.no_ai_mode:
+                print(f"{Fore.YELLOW}⚠ NO-AI MODE: Commands will execute directly without AI processing{Style.RESET_ALL}")
             print(f"\n{Fore.MAGENTA}FOR GLOBAL ACCESS:{Style.RESET_ALL}")
             print(f"{Fore.WHITE}  1. Run: ngrok tcp {self.host_port}{Style.RESET_ALL}")
             print(f"{Fore.WHITE}  2. Share the ngrok URL{Style.RESET_ALL}")
@@ -277,7 +376,7 @@ class P2PTerminalSharing:
                 
             except socket.timeout:
                 continue
-            except:
+            except Exception:
                 if self.running:
                     import time
                     time.sleep(0.1)
@@ -350,7 +449,7 @@ class P2PTerminalSharing:
                         break
                 except socket.timeout:
                     continue
-                except:
+                except Exception:
                     break
             
         except Exception as e:
@@ -371,7 +470,7 @@ class P2PTerminalSharing:
                     self._add_log(f"[DISCONNECT] {name} left", "system")
             try:
                 client_socket.close()
-            except:
+            except Exception:
                 pass
     
     def _handle_client_message(self, client_id: str, msg: Dict):
@@ -534,7 +633,7 @@ class P2PTerminalSharing:
             data = json.dumps(msg) + '\n'
             client['socket'].send(data.encode('utf-8'))
             return True
-        except:
+        except Exception:
             return False
     
     def _broadcast(self, msg: Dict, exclude: str = None):
@@ -636,7 +735,7 @@ class P2PTerminalSharing:
                     break
             except socket.timeout:
                 continue
-            except:
+            except Exception:
                 if self.running:
                     time.sleep(0.1)
     
@@ -784,7 +883,7 @@ class P2PTerminalSharing:
                 data = json.dumps(msg) + '\n'
                 self.socket.send(data.encode('utf-8'))
                 print(f"{Fore.GREEN}[{timestamp}] You: {text}{Style.RESET_ALL}")
-            except:
+            except Exception:
                 return {"success": False, "error": "Failed to send"}
         
         return {"success": True}
@@ -1220,14 +1319,14 @@ class P2PTerminalSharing:
             for client_id, client in list(self.clients.items()):
                 try:
                     client['socket'].close()
-                except:
+                except Exception:
                     pass
             self.clients.clear()
         
         if self.socket:
             try:
                 self.socket.close()
-            except:
+            except Exception:
                 pass
             self.socket = None
         

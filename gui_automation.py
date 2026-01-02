@@ -17,6 +17,9 @@ try:
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
+    Image = None
+    ImageDraw = None
+    ImageFont = None
 
 try:
     import google.generativeai as genai

@@ -8,12 +8,7 @@ try:
     from posthog import Posthog
     POSTHOG_AVAILABLE = True
 except ImportError:
-    try:
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'posthog', '-q'])
-        from posthog import Posthog
-        POSTHOG_AVAILABLE = True
-    except:
-        POSTHOG_AVAILABLE = False
+    POSTHOG_AVAILABLE = False
 
 from colorama import Fore, Style
 

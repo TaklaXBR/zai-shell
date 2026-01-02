@@ -29,6 +29,32 @@ CHROMA_COLLECTION_NAME = "zaishell_memory"
 OFFLINE_MODEL_PATH = ".zaishell_offline_model"
 OFFLINE_MODEL_NAME = "microsoft/phi-2"
 
+
+def extract_json_from_text(text: str) -> Optional[Dict]:
+    """Utility function to extract JSON from AI response text."""
+    if not text:
+        return None
+    try:
+        json_start = text.find('{')
+        if json_start < 0:
+            return None
+        bracket_count = 0
+        json_end = -1
+        for i, char in enumerate(text[json_start:], json_start):
+            if char == '{':
+                bracket_count += 1
+            elif char == '}':
+                bracket_count -= 1
+                if bracket_count == 0:
+                    json_end = i + 1
+                    break
+        if json_end > json_start:
+            return json.loads(text[json_start:json_end])
+    except json.JSONDecodeError:
+        pass
+    return None
+
+
 SAFETY_SETTINGS = [
     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -1643,10 +1669,12 @@ class ZAIShell:
         if self.brain._p2p_sharing and self.brain._p2p_sharing.is_connected:
             code = self.brain._p2p_sharing.share_code
             sharing_line = f"\n{Fore.MAGENTA}Terminal Sharing: ACTIVE ({code}){Style.RESET_ALL}"
-        encryption_status = "ON" if self.brain.p2p_sharing.encryption_enabled else "OFF"
+        encryption_status = "OFF"
+        if self.brain._p2p_sharing and self.brain._p2p_sharing.encryption_enabled:
+            encryption_status = "ON"
         print(f"""
 {Fore.CYAN}========================================================
-            ZAI v8.0 - Advanced AI Shell
+            ZAI v8.1 - Advanced AI Shell
    Terminal | GUI | Research | Image | P2P | E2E Crypto
 ========================================================{Style.RESET_ALL}
 
@@ -1684,12 +1712,20 @@ class ZAIShell:
         if len(parts) >= 2:
             subcommand = parts[1].lower()
             if subcommand == 'start':
-                port = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else None
-                self.brain.p2p_sharing.start_sharing_session(port)
+                no_ai = '--no-ai' in user_input.lower()
+                remaining_parts = [p for p in parts[2:] if p.lower() != '--no-ai']
+                port = int(remaining_parts[0]) if remaining_parts and remaining_parts[0].isdigit() else None
+                self.brain.p2p_sharing.start_sharing_session(port, no_ai=no_ai)
                 return True
             elif subcommand == 'encrypt':
-                password = parts[2] if len(parts) >= 3 else None
-                self.brain.p2p_sharing.enable_encryption(password)
+                if len(parts) >= 4 and parts[2].lower() == 'key':
+                    full_key = ' '.join(parts[3:])
+                    self.brain.p2p_sharing.enable_encryption(f'key:{full_key}')
+                elif len(parts) >= 3:
+                    mode = parts[2]
+                    self.brain.p2p_sharing.enable_encryption(mode)
+                else:
+                    self.brain.p2p_sharing.enable_encryption(None)
                 return True
             elif subcommand == 'name' and len(parts) >= 3:
                 new_name = ' '.join(parts[2:])
@@ -1801,11 +1837,35 @@ class ZAIShell:
                     cmd = self.brain.p2p_sharing.approve_pending(True)
                     if cmd:
                         print(f"{Fore.GREEN}Executing: {cmd}{Style.RESET_ALL}")
-                        result = self.brain.think_and_act(cmd, force_execute=True, safe_mode=True)
-                        if result.get('results'):
-                            for r in result['results']:
-                                if r.get('output'):
-                                    self.brain.p2p_sharing.broadcast_output(r['output'][:300])
+                        if self.brain.p2p_sharing.no_ai_mode:
+                            shell_aliases = {
+                                'cmd': 'cmd', 'powershell': 'powershell', 'ps': 'powershell',
+                                'pwsh': 'pwsh', 'wsl': 'wsl', 'git-bash': 'git-bash',
+                                'cygwin': 'cygwin', 'bash': 'bash', 'sh': 'sh',
+                                'zsh': 'zsh', 'fish': 'fish', 'ksh': 'ksh',
+                                'tcsh': 'tcsh', 'dash': 'dash'
+                            }
+                            parts = cmd.rsplit(' ', 1)
+                            if len(parts) == 2 and parts[1].lower() in shell_aliases:
+                                actual_cmd = parts[0]
+                                shell_type = shell_aliases[parts[1].lower()]
+                                print(f"{Fore.CYAN}[{shell_type.upper()}] {actual_cmd}{Style.RESET_ALL}")
+                            else:
+                                actual_cmd = cmd
+                                shell_type = 'cmd'
+                            result = self.brain.tools.run_command({'content': actual_cmd, 'shell': shell_type, 'encoding': 'utf-8'})
+                            if result.get('success'):
+                                output = result.get('output', '')
+                                print(f"{Fore.GREEN}{output}{Style.RESET_ALL}" if output else f"{Fore.GREEN}Command executed{Style.RESET_ALL}")
+                                self.brain.p2p_sharing.broadcast_output(output[:500] if output else "Command executed")
+                            else:
+                                print(f"{Fore.RED}Error: {result.get('error', 'Unknown')}{Style.RESET_ALL}")
+                        else:
+                            result = self.brain.think_and_act(cmd, force_execute=True, safe_mode=True)
+                            if result.get('results'):
+                                for r in result['results']:
+                                    if r.get('output'):
+                                        self.brain.p2p_sharing.broadcast_output(r['output'][:300])
                     else:
                         print(f"{Fore.YELLOW}No pending commands{Style.RESET_ALL}")
                 return True
@@ -1817,6 +1877,9 @@ class ZAIShell:
                 users = self.brain.p2p_sharing.get_connected_users()
                 print(f"\n{Fore.CYAN}Connected Users: {', '.join(users)}{Style.RESET_ALL}")
                 return True
+            elif subcommand == 'end':
+                self.brain.p2p_sharing.end_session()
+                return True
         self._show_share_help()
         return True
     
@@ -1824,17 +1887,28 @@ class ZAIShell:
         """Show share command help"""
         current_name = self.brain.p2p_sharing.my_name or "Not set"
         encryption = "ON" if self.brain.p2p_sharing.encryption_enabled else "OFF"
+        key_info = ""
+        if self.brain.p2p_sharing.encryption_enabled and self.brain.p2p_sharing.encryption_key_display:
+            key_info = f" ({self.brain.p2p_sharing.encryption_key_display})"
         print(f"""
 {Fore.CYAN}{'='*55}{Style.RESET_ALL}
 {Fore.CYAN}TERMINAL SHARING (MULTI-CLIENT P2P + E2E ENCRYPTION){Style.RESET_ALL}
 {Fore.CYAN}{'='*55}{Style.RESET_ALL}
-{Fore.YELLOW}Your Name: {current_name} | Encryption: {encryption}{Style.RESET_ALL}
+{Fore.YELLOW}Your Name: {current_name} | Encryption: {encryption}{key_info}{Style.RESET_ALL}
 
 {Fore.GREEN}Session:{Style.RESET_ALL}
-  share start [port]        - Start host session
+  share start [port]        - Start host session (AI-assisted)
+  share start --no-ai       - Start without AI (direct command execution)
   share connect IP:PORT     - Connect to host
-  share encrypt [password]  - Enable E2E encryption (before connect)
   share end                 - End session
+
+{Fore.GREEN}Encryption:{Style.RESET_ALL}
+  share encrypt             - Show encryption status & full key
+  share encrypt on          - Enable with saved/new random key
+  share encrypt off         - Disable encryption
+  share encrypt random      - Generate new random key (shows full key)
+  share encrypt <password>  - Use password-based key
+  share encrypt key <key>   - Use specific Fernet key
 
 {Fore.GREEN}Communication:{Style.RESET_ALL}
   share message <text>      - Send message to all
@@ -1859,10 +1933,6 @@ class ZAIShell:
   1. Host: Run 'ngrok tcp 5757'
   2. Share the ngrok URL (e.g., 0.tcp.ngrok.io:12345)
   3. Helper: 'share connect 0.tcp.ngrok.io:12345'
-
-{Fore.YELLOW}E2E Encryption:{Style.RESET_ALL}
-  Both host and helper must run 'share encrypt <same_password>'
-  before starting/connecting to enable encrypted communication.
 """)
     
     def parse_command(self, user_input):
