@@ -842,6 +842,7 @@ Açık kaynak, kullanımı ve değiştirilmesi ücretsiz.
 
 ⭐ **ZAI terminal oturumunuzu kurtardıysa bu repoyu yıldızlayın!** ⭐
 
-**15 yaşında bir geliştirici tarafından ❤️ ile yapıldı**
+**15 yaşında bir geliştirici tarafından ile yapıldı ❤️**
 
 </div>
+
