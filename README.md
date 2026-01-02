@@ -1,5 +1,7 @@
 # ZAI Shell
 
+[![🇹🇷 Türkçe](https://img.shields.io/badge/🇹🇷_TÜRKÇE_DÖKÜMANTASYON-FF0000?style=for-the-badge&logoColor=white)](README_TR.md)
+
 **AI terminal assistant with self-healing capabilities, GUI automation, web research, and secure P2P collaboration with end-to-end encryption.**
 
 ZAI doesn't give up when errors occur. It analyzes failures, switches strategies, and retries automatically until successful.
@@ -612,10 +614,15 @@ memory clear        # Reset
 
 # === TERMINAL SHARING (P2P) ===
 # Encryption
-share encrypt <password>  # Enable E2E encryption (before start/connect)
+share encrypt             # Show encryption status & key
+share encrypt on/off      # Toggle encryption
+share encrypt random      # Generate random key (displays full key)
+share encrypt <password>  # Password-based key
+share encrypt key <key>   # Use specific Fernet key
 
 # Host commands
-share start [port]        # Start hosting session
+share start [port]        # Start session (AI-assisted)
+share start --no-ai       # Start without AI (direct commands)
 share message <text>      # Send message to all
 share file <path> [user]  # Send file (specific user or broadcast)
 share list                # List connected clients
@@ -623,15 +630,21 @@ share approve             # Approve pending command
 share reject              # Reject pending command
 share end                 # End session
 
-# Helper commands
+# Helper commands (--no-ai mode: add shell suffix)
 share connect IP:PORT     # Connect to host
 share send <command>      # Send command (needs host approval)
+share send dir wsl        # Run in WSL (--no-ai mode)
+share send ls bash        # Run in Bash (--no-ai mode)
 share message <text>      # Send message to all
 share file <path> [user]  # Send file (default: host)
 share accept [path]       # Accept incoming file
 share deny                # Reject incoming file
 share logs                # Request host logs
 share end                 # Disconnect
+
+# Supported shells for --no-ai suffix:
+# cmd, powershell, ps, pwsh, wsl, git-bash
+# cygwin, bash, sh, zsh, fish, ksh, tcsh, dash
 
 # Info commands
 share name <newname>      # Change your name
