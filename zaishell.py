@@ -7,8 +7,11 @@ import json
 import platform
 import re
 import keyboard
+import locale
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+
+SYSTEM_ENCODING = locale.getpreferredencoding(False)
 
 import google.generativeai as genai
 from colorama import init, Fore, Style
@@ -484,7 +487,7 @@ class ModeManager:
 - OUTPUT MINIMAL JSON. Format: {"understanding":"brief","actions":[...],"response":"1 word"}
 - NO <thinking> tags.
 - ONE action only (chain commands with && or ; if needed).
-- Example: {"understanding":"Delete logs","actions":[{"type":"command","details":{"shell":"cmd","content":"del *.log"}}],"response":"Done"}
+- Example: {"understanding":"Delete logs","actions":[{"type":"command","details":{"shell":"cmd","content":"del *.log","encoding":"cp1254"}}],"response":"Done"}
 """
         }
     }
@@ -510,7 +513,7 @@ class AITools:
         try:
             path = details.get('path', '')
             content = details.get('content', '')
-            encoding = details.get('encoding', 'utf-8')
+            encoding = details.get('encoding') or SYSTEM_ENCODING
             mode = details.get('mode', 'text')
             
             if not path:
@@ -602,7 +605,7 @@ class AITools:
         """Execute system command - optimized"""
         command = details.get('content', '')
         shell_type = details.get('shell', 'cmd').lower()
-        encoding = details.get('encoding', 'utf-8')
+        encoding = details.get('encoding') or SYSTEM_ENCODING
         
         if not command:
             return {"success": False, "error": "Command not specified"}
@@ -970,7 +973,7 @@ If the task can be done entirely with terminal, set needs_gui to false.'''
                                 result = {"success": False, "error": f"Blocked: {dangerous}"}
                                 results.append(result)
                                 continue
-                    result = self.tools.run_command({'content': command, 'shell': 'cmd', 'encoding': 'utf-8'})
+                    result = self.tools.run_command({'content': command, 'shell': step.get('shell', 'cmd'), 'encoding': step.get('encoding') or SYSTEM_ENCODING})
                     if result.get('success') and self.telemetry:
                         self.telemetry.track_interface_preference(is_gui=False)
                 elif step_type == 'gui':
@@ -1294,13 +1297,14 @@ RESPONSE FORMAT (JSON):
                 "content": "content/command",
                 "shell": "cmd|powershell|pwsh|bash|sh",
                 "language": "code language (if applicable)",
-                "encoding": "utf-8|cp850|cp1254",
+                "encoding": "REQUIRED! Choose the best encoding for the task",
                 "mode": "binary|text (if applicable)"
             }}
         }}
     ],
     "response": "Natural language response to user"
 }}
+ENCODING RULE: You MUST always specify encoding! Choose the most appropriate encoding for each task (utf-8 for text files, system encoding for shell commands).
 CONVERSATION HISTORY:
 {history_text}
 CURRENT TASK:
@@ -1674,7 +1678,7 @@ class ZAIShell:
             encryption_status = "ON"
         print(f"""
 {Fore.CYAN}========================================================
-            ZAI v8.1 - Advanced AI Shell
+            ZAI v8.1.1 - Advanced AI Shell
    Terminal | GUI | Research | Image | P2P | E2E Crypto
 ========================================================{Style.RESET_ALL}
 
