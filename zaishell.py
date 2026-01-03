@@ -6,7 +6,10 @@ import datetime
 import json
 import platform
 import re
-import keyboard
+try:
+    import keyboard
+except ImportError:
+    keyboard = None
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -1998,7 +2001,7 @@ class ZAIShell:
                         continue
                     if user_input.lower().startswith('gui'):
                         if 'on' in user_input.lower():
-                            if not PYAUTOGUI_AVAILABLE:
+                            if not PYAUTOGUI_AVAILABLE or keyboard is None:
                                 print(f"\n{Fore.YELLOW}GUI automation requires pyautogui and keyboard packages.{Style.RESET_ALL}")
                                 choice = input(f"{Fore.CYAN}Install now? (Y/N): {Style.RESET_ALL}").upper()
                                 if choice == 'Y':
