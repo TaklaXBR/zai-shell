@@ -838,10 +838,26 @@ Açık kaynak, kullanımı ve değiştirilmesi ücretsiz.
 
 ---
 
+## 💬 Topluluk Geri Bildirimleri
+
+> "Repo'yu inceledim – 'self-healing' mantığı (komut başarısız olduğunda CMD'den PowerShell'e otomatik geçiş) gerçekten zekice. Sadece hata mesajı göstermekten çok daha akıllı."
+> 
+> — **Hacker News Kullanıcısı**
+
+> "Self-healing retry mantığı harika... 15 yaşında bunu yapmış olman gerçekten etkileyici."
+> 
+> — **Reddit Kullanıcısı (r/LocalLLaMA)**
+
+> "Çok fazla agentvari şey denedim, şu anda Claude Code ağır basıyor ama... özellikle offline model kullanımına bayıldım. Başarılarının devamını görmek isteriz."
+> 
+> — **Reddit Kullanıcısı (r/TurkDev)**
+
+---
+
 <div align="center">
 
-⭐ **ZAI terminal oturumunuzu kurtardıysa bu repoyu yıldızlayın!** ⭐
+⭐ **ZAI terminal oturumunuzu kurtardıysa, yıldız bırakın!** ⭐
 
-**❤️ 15 yaşında bir geliştirici tarafından yapıldı ❤️**
+   **❤️ ile [@TaklaXBR](https://github.com/TaklaXBR) tarafından yapıldı | 15 Yaşında | Türkiye 🇹🇷**
 
 </div>
