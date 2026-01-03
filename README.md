@@ -794,10 +794,27 @@ Open source, free to use and modify.
 
 ---
 
+## 💬 Community Feedback
+
+> "I dug into the repo – the 'self-healing' logic (automatically switching from CMD to PowerShell on failure) is genuinely clever. Much smarter than just dumping a stack trace."
+> 
+> — **Hacker News User**
+
+> "Dude the self-healing retry logic sounds sick... Props on building this at 15, that's pretty impressive."
+> 
+> — **Reddit User (r/LocalLLaMA)**
+
+> "Çok fazla agentvari şey denedim, şu anda Claude Code ağır basıyor ama... özellikle offline model kullanımına bayıldım. Başarılarının devamını görmek isteriz."  
+> *(Tried many agents... especially loved the offline model usage. Looking forward to future success.)*
+> 
+> — **Reddit User (r/TurkDev)**
+
+---
+
 <div align="center">
 
 ⭐ **Star this repo if ZAI saved your terminal session!** ⭐
 
-**Made with by a 15-year-old developer ❤️**
+**Built with ❤️ by [@TaklaXBR](https://github.com/TaklaXBR) | Age 15 | Turkey 🇹🇷**
 
 </div>
