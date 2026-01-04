@@ -107,6 +107,25 @@ You: ✓ Zero manual work
 | **Hybrid Workflows** | ✅ Terminal + GUI seamlessly | ❌ Terminal only | ✅ Full system + GUI control | ❌ Terminal + GitHub only | ⚠️ Web browser + terminal |
 | **Custom Functions** | ✅ Built-in + extensible | ✅ Plugin system + custom functions | ✅ Python execution unlimited | ✅ MCP integrations (extensible) | ✅ Plugin ecosystem |
 
+---
+
+## 💬 Community Feedback
+
+> "I dug into the repo – the 'self-healing' logic (automatically switching from CMD to PowerShell on failure) is genuinely clever. Much smarter than just dumping a stack trace."
+> 
+> — **Hacker News User**
+
+> "Dude the self-healing retry logic sounds sick... Props on building this at 15, that's pretty impressive."
+> 
+> — **Reddit User (r/LocalLLaMA)**
+
+> "Çok fazla agentvari şey denedim, şu anda Claude Code ağır basıyor ama... özellikle offline model kullanımına bayıldım. Başarılarının devamını görmek isteriz."  
+> *(Tried many agents... especially loved the offline model usage. Looking forward to future success.)*
+> 
+> — **Reddit User (r/TurkDev)**
+
+---
+
 ### Performance Benchmark
 
 **Stress Test (44 Tasks):**
@@ -791,23 +810,6 @@ Open source, free to use and modify.
 **Age:** 15 (AI & Python enthusiast)  
 **Email:** oe67111@gmail.com  
 **GitHub:** [@TaklaXBR](https://github.com/TaklaXBR)
-
----
-
-## 💬 Community Feedback
-
-> "I dug into the repo – the 'self-healing' logic (automatically switching from CMD to PowerShell on failure) is genuinely clever. Much smarter than just dumping a stack trace."
-> 
-> — **Hacker News User**
-
-> "Dude the self-healing retry logic sounds sick... Props on building this at 15, that's pretty impressive."
-> 
-> — **Reddit User (r/LocalLLaMA)**
-
-> "Çok fazla agentvari şey denedim, şu anda Claude Code ağır basıyor ama... özellikle offline model kullanımına bayıldım. Başarılarının devamını görmek isteriz."  
-> *(Tried many agents... especially loved the offline model usage. Looking forward to future success.)*
-> 
-> — **Reddit User (r/TurkDev)**
 
 ---
 
