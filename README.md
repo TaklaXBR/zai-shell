@@ -1,6 +1,6 @@
 # ZAI Shell
 
-[![🇹🇷 Türkçe](https://img.shields.io/badge/🇹🇷_TÜRKÇE_DÖKÜMANTASYON-FF0000?style=for-the-badge&logoColor=white)](README_TR.md)
+[![🇹🇷 Türkçe](https://img.shields.io/badge/🇹🇷_TÜRKÇE_BELGELENDİRME-FF0000?style=for-the-badge&logoColor=white)](README_TR.md)
 
 **AI terminal assistant with self-healing capabilities, GUI automation, web research, and secure P2P collaboration with end-to-end encryption.**
 
