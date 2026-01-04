@@ -107,6 +107,25 @@ Sen: ✓ Sıfır manuel çaba
 | **Hibrit İş Akışları** | ✅ Terminal + GUI sorunsuz | ❌ Sadece terminal | ✅ Tam sistem + GUI kontrolü | ❌ Sadece terminal + GitHub | ⚠️ Web tarayıcısı + terminal |
 | **Özel Fonksiyonlar** | ✅ Dahili + genişletilebilir | ✅ Eklenti sistemi + özel fonksiyonlar | ✅ Sınırsız Python çalıştırma | ✅ MCP entegrasyonları (genişletilebilir) | ✅ Eklenti ekosistemi |
 
+
+---
+
+## 💬 Topluluk Geri Bildirimleri
+
+> "Repo'yu inceledim – 'self-healing' mantığı (komut başarısız olduğunda CMD'den PowerShell'e otomatik geçiş) gerçekten zekice. Sadece hata mesajı göstermekten çok daha akıllı."
+> 
+> — **Hacker News Kullanıcısı**
+
+> "Self-healing retry mantığı harika... 15 yaşında bunu yapmış olman gerçekten etkileyici."
+> 
+> — **Reddit Kullanıcısı (r/LocalLLaMA)**
+
+> "Çok fazla agentvari şey denedim, şu anda Claude Code ağır basıyor ama... özellikle offline model kullanımına bayıldım. Başarılarının devamını görmek isteriz."
+> 
+> — **Reddit Kullanıcısı (r/TurkDev)**
+
+---
+
 ### Performans Karşılaştırması
 
 **Stres Testi (44 Görev):**
@@ -838,22 +857,6 @@ Açık kaynak, kullanımı ve değiştirilmesi ücretsiz.
 
 ---
 
-## 💬 Topluluk Geri Bildirimleri
-
-> "Repo'yu inceledim – 'self-healing' mantığı (komut başarısız olduğunda CMD'den PowerShell'e otomatik geçiş) gerçekten zekice. Sadece hata mesajı göstermekten çok daha akıllı."
-> 
-> — **Hacker News Kullanıcısı**
-
-> "Self-healing retry mantığı harika... 15 yaşında bunu yapmış olman gerçekten etkileyici."
-> 
-> — **Reddit Kullanıcısı (r/LocalLLaMA)**
-
-> "Çok fazla agentvari şey denedim, şu anda Claude Code ağır basıyor ama... özellikle offline model kullanımına bayıldım. Başarılarının devamını görmek isteriz."
-> 
-> — **Reddit Kullanıcısı (r/TurkDev)**
-
----
-
 <div align="center">
 
 ⭐ **ZAI terminal oturumunuzu kurtardıysa, yıldız bırakın!** ⭐
@@ -861,3 +864,4 @@ Açık kaynak, kullanımı ve değiştirilmesi ücretsiz.
    **❤️ ile [@TaklaXBR](https://github.com/TaklaXBR) tarafından yapıldı | 15 Yaşında | Türkiye 🇹🇷**
 
 </div>
+
