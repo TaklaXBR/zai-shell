@@ -806,9 +806,10 @@ Open source, free to use and modify.
 
 ## 📧 Contact
 
-**Creator:** Ömer Efe Başol  
-**Age:** 15 (AI & Python enthusiast)  
-**Email:** oe67111@gmail.com  
+**Creator:** Ömer Efe Başol
+**Role:** Independent Researcher & Lead Developer
+**Age:** 15
+**Email:** oe67111@gmail.com
 **GitHub:** [@TaklaXBR](https://github.com/TaklaXBR)
 
 ---
