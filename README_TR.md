@@ -850,10 +850,12 @@ Açık kaynak, kullanımı ve değiştirilmesi ücretsiz.
 
 ## 📧 İletişim
 
-**Geliştirici:** Ömer Efe Başol  
-**Yaş:** 15 (AI & Python meraklısı)  
-**E-posta:** oe67111@gmail.com  
+**Geliştirici:** Ömer Efe Başol
+**Rol:** Bağımsız Araştırmacı & Baş Geliştirici
+**Yaş:** 15
+**E-posta:** oe67111@gmail.com
 **GitHub:** [@TaklaXBR](https://github.com/TaklaXBR)
+
 
 ---
 
@@ -864,4 +866,5 @@ Açık kaynak, kullanımı ve değiştirilmesi ücretsiz.
    **❤️ ile [@TaklaXBR](https://github.com/TaklaXBR) tarafından yapıldı | 15 Yaşında | Türkiye 🇹🇷**
 
 </div>
+
 
