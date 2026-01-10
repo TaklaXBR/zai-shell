@@ -1,8 +1,10 @@
 # ZAI Shell
 
-[![🇹🇷 Türkçe](https://img.shields.io/badge/🇹🇷_TÜRKÇE_BELGELENDİRME-FF0000?style=for-the-badge&logoColor=white)](README_TR.md)
+[![🇹🇷 Türkçe](https://img.shields.io/badge/🇹🇷_TÜRKÇE_BELGELENDİRME-FF0000?style=for-the-badge&logoColor=white)](README_TR.md) [![Whitepaper](https://img.shields.io/badge/📄_WHITEPAPER-READ_IEEE_FORMAT-0056D2?style=for-the-badge&logoColor=white)](docs/whitepaper.pdf)
 
 **AI terminal assistant with self-healing capabilities, GUI automation, web research, and secure P2P collaboration with end-to-end encryption.**
+
+> 🎓 **[Click here to read the Official ZAI Protocol Whitepaper (v9.0 Vision & Sentinel Mode)](docs/whitepaper.pdf)**
 
 ZAI doesn't give up when errors occur. It analyzes failures, switches strategies, and retries automatically until successful.
 
