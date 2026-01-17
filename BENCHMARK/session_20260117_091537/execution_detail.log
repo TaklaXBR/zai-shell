@@ -1,0 +1,116 @@
+[2026-01-17 11:12:05] [INFO] ✓ Scenario 62 PASSED after 5 attempt(s)
+[2026-01-17 11:12:06] [INFO] Breaking system for: World-writable sensitive user file
+[2026-01-17 11:12:06] [INFO] System broken: {"broken": "sensitive user data file is world-writable"}
+[2026-01-17 11:12:29] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:12:55] [INFO] Validation failed, trying self-healing (attempt 3)
+[2026-01-17 11:13:18] [INFO] Validation failed, trying self-healing (attempt 4)
+[2026-01-17 11:13:43] [INFO] Validation failed, trying self-healing (attempt 5)
+[2026-01-17 11:14:09] [INFO] Validation failed, trying self-healing (attempt 6)
+[2026-01-17 11:14:31] [ERROR] ✗ Scenario 63 FAILED: chmod: missing operand after ‘o-w’
+Try 'chmod --help' for more information.
+
+[2026-01-17 11:14:32] [INFO] Breaking system for: Password hashes exposed in file
+[2026-01-17 11:14:32] [INFO] System broken: {"broken": "password hashes exposed in world-readable file"}
+[2026-01-17 11:14:58] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:19:35] [INFO] Validation failed, trying self-healing (attempt 3)
+[2026-01-17 11:20:00] [INFO] Validation failed, trying self-healing (attempt 4)
+[2026-01-17 11:20:25] [INFO] Validation failed, trying self-healing (attempt 5)
+[2026-01-17 11:20:50] [INFO] Validation failed, trying self-healing (attempt 6)
+[2026-01-17 11:23:18] [ERROR] ✗ Scenario 64 FAILED: Command timed out after 120s
+[2026-01-17 11:23:19] [INFO] Breaking system for: Crontab world-writable
+[2026-01-17 11:23:20] [INFO] System broken: {"broken": "/etc/crontab world-writable"}
+[2026-01-17 11:23:25] [INFO] ✓ Scenario 65 PASSED after 1 attempt(s)
+[2026-01-17 11:23:26] [INFO] Breaking system for: Cron job with invalid syntax
+[2026-01-17 11:23:26] [INFO] System broken: {"broken": "cron job with invalid syntax"}
+[2026-01-17 11:25:49] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:26:20] [INFO] Validation failed, trying self-healing (attempt 3)
+[2026-01-17 11:27:01] [INFO] Validation failed, trying self-healing (attempt 4)
+[2026-01-17 11:27:20] [INFO] Validation failed, trying self-healing (attempt 5)
+[2026-01-17 11:27:46] [INFO] Validation failed, trying self-healing (attempt 6)
+[2026-01-17 11:28:22] [ERROR] ✗ Scenario 66 FAILED: Failed to reload cron.service: Job type reload is not applicable for unit cron.service.
+
+[2026-01-17 11:28:23] [INFO] Breaking system for: Wheel group deleted
+[2026-01-17 11:28:23] [INFO] System broken: {"broken": "wheel group deleted"}
+[2026-01-17 11:28:58] [INFO] ✓ Scenario 67 PASSED after 1 attempt(s)
+[2026-01-17 11:28:59] [INFO] Breaking system for: Fail2ban service stopped
+[2026-01-17 11:29:00] [INFO] System broken: {"broken": "fail2ban stopped (no brute force protection)"}
+[2026-01-17 11:29:19] [INFO] ✓ Scenario 68 PASSED after 1 attempt(s)
+[2026-01-17 11:29:20] [INFO] Breaking system for: Auditd service stopped
+[2026-01-17 11:29:20] [INFO] System broken: {"broken": "auditd stopped (no audit logging)"}
+[2026-01-17 11:29:39] [INFO] ✓ Scenario 69 PASSED after 1 attempt(s)
+[2026-01-17 11:29:40] [INFO] Breaking system for: Script with insecure umask setting
+[2026-01-17 11:29:40] [INFO] System broken: {"broken": "script sets insecure umask 000"}
+[2026-01-17 11:30:04] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:30:33] [INFO] Validation failed, trying self-healing (attempt 3)
+[2026-01-17 11:32:54] [INFO] Validation failed, trying self-healing (attempt 4)
+[2026-01-17 11:33:24] [INFO] Validation failed, trying self-healing (attempt 5)
+[2026-01-17 11:34:57] [INFO] Validation failed, trying self-healing (attempt 6)
+[2026-01-17 11:35:24] [ERROR] ✗ Scenario 70 FAILED: Failed to restart .service.service: Unit .service.service not found.
+
+[2026-01-17 11:35:25] [INFO] Breaking system for: Corrupted /etc/hosts file
+[2026-01-17 11:35:25] [INFO] System broken: {"broken": "/etc/hosts has invalid localhost entry"}
+[2026-01-17 11:35:39] [INFO] ✓ Scenario 71 PASSED after 1 attempt(s)
+[2026-01-17 11:35:40] [INFO] Breaking system for: Empty /etc/hostname
+[2026-01-17 11:35:40] [INFO] System broken: {"broken": "/etc/hostname is empty"}
+[2026-01-17 11:35:54] [INFO] ✓ Scenario 72 PASSED after 1 attempt(s)
+[2026-01-17 11:35:55] [INFO] Breaking system for: Invalid locale configuration
+[2026-01-17 11:35:55] [INFO] System broken: {"broken": "invalid locale configuration"}
+[2026-01-17 11:36:07] [INFO] ✓ Scenario 73 PASSED after 1 attempt(s)
+[2026-01-17 11:36:08] [INFO] Breaking system for: Syntax error in system bashrc
+[2026-01-17 11:36:08] [INFO] System broken: {"broken": "/etc/bash.bashrc has syntax error"}
+[2026-01-17 11:36:35] [INFO] ✓ Scenario 74 PASSED after 1 attempt(s)
+[2026-01-17 11:36:36] [INFO] Breaking system for: Corrupted APT sources.list
+[2026-01-17 11:36:36] [INFO] System broken: {"broken": "apt sources.list pointing to invalid repository"}
+[2026-01-17 11:36:59] [INFO] ✓ Scenario 75 PASSED after 1 attempt(s)
+[2026-01-17 11:37:00] [INFO] Breaking system for: Sudo group missing from /etc/group
+[2026-01-17 11:37:00] [INFO] System broken: {"broken": "sudo group renamed breaking sudo access"}
+[2026-01-17 11:37:34] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:37:55] [INFO] ✓ Scenario 76 PASSED after 2 attempt(s)
+[2026-01-17 11:37:56] [INFO] Breaking system for: /bin/bash missing from /etc/shells
+[2026-01-17 11:37:56] [INFO] System broken: {"broken": "/bin/bash removed from valid shells"}
+[2026-01-17 11:38:02] [INFO] ✓ Scenario 77 PASSED after 1 attempt(s)
+[2026-01-17 11:38:03] [INFO] Breaking system for: Invalid /etc/ld.so.conf
+[2026-01-17 11:38:04] [INFO] System broken: {"broken": "ld.so.conf pointing to nonexistent path"}
+[2026-01-17 11:38:35] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:39:11] [INFO] Validation failed, trying self-healing (attempt 3)
+[2026-01-17 11:39:37] [INFO] Validation failed, trying self-healing (attempt 4)
+[2026-01-17 11:40:14] [INFO] Validation failed, trying self-healing (attempt 5)
+[2026-01-17 11:40:58] [INFO] Validation failed, trying self-healing (attempt 6)
+[2026-01-17 11:41:36] [ERROR] ✗ Scenario 78 FAILED: JSON parse error: Invalid \escape: line 5 column 145 (char 1103)
+[2026-01-17 11:41:37] [INFO] Breaking system for: Locked /etc/motd file
+[2026-01-17 11:41:37] [INFO] System broken: {"broken": "/etc/motd is locked and inaccessible"}
+[2026-01-17 11:41:46] [INFO] ✓ Scenario 79 PASSED after 1 attempt(s)
+[2026-01-17 11:41:47] [INFO] Breaking system for: Broken /etc/nsswitch.conf
+[2026-01-17 11:41:47] [INFO] System broken: {"broken": "nsswitch.conf has invalid hosts configuration"}
+[2026-01-17 11:42:07] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:42:33] [INFO] Validation failed, trying self-healing (attempt 3)
+[2026-01-17 11:42:57] [INFO] Validation failed, trying self-healing (attempt 4)
+[2026-01-17 11:43:23] [INFO] Validation failed, trying self-healing (attempt 5)
+[2026-01-17 11:43:43] [INFO] Validation failed, trying self-healing (attempt 6)
+[2026-01-17 11:44:10] [ERROR] ✗ Scenario 80 FAILED: bash: -c: line 1: syntax error near unexpected token `then'
+bash: -c: line 1: `sudo if systemctl is-active --quiet nscd; then sudo nscd -i hosts; sudo systemctl restart nscd; fi'
+
+[2026-01-17 11:44:11] [INFO] Breaking system for: Restrictive security limits
+[2026-01-17 11:44:11] [INFO] System broken: {"broken": "limits.conf sets max open files to 1"}
+[2026-01-17 11:44:32] [INFO] ✓ Scenario 81 PASSED after 1 attempt(s)
+[2026-01-17 11:44:33] [INFO] Breaking system for: Broken logrotate configuration
+[2026-01-17 11:44:33] [INFO] System broken: {"broken": "logrotate.conf has syntax error"}
+[2026-01-17 11:46:47] [INFO] ✓ Scenario 82 PASSED after 1 attempt(s)
+[2026-01-17 11:46:48] [INFO] Breaking system for: Dangerous sysctl configuration
+[2026-01-17 11:46:48] [INFO] System broken: {"broken": "sysctl.conf has dangerous kernel.panic value"}
+[2026-01-17 11:46:55] [INFO] ✓ Scenario 83 PASSED after 1 attempt(s)
+[2026-01-17 11:46:56] [INFO] Breaking system for: Root blocked from cron
+[2026-01-17 11:46:56] [INFO] System broken: {"broken": "root added to cron.deny blocking cron jobs"}
+[2026-01-17 11:47:07] [INFO] ✓ Scenario 84 PASSED after 1 attempt(s)
+[2026-01-17 11:47:08] [INFO] Breaking system for: Broken editor alternatives
+[2026-01-17 11:47:08] [INFO] System broken: {"broken": "default editor set to /bin/false"}
+[2026-01-17 11:47:32] [INFO] ✓ Scenario 85 PASSED after 1 attempt(s)
+[2026-01-17 11:47:33] [INFO] Breaking system for: Corrupted /etc/magic file
+[2026-01-17 11:47:33] [INFO] System broken: {"broken": "/etc/magic file corrupted"}
+[2026-01-17 11:48:02] [INFO] ✓ Scenario 86 PASSED after 1 attempt(s)
+[2026-01-17 11:48:03] [INFO] Breaking system for: Broken readline config
+[2026-01-17 11:48:03] [INFO] System broken: {"broken": "/etc/inputrc has invalid option"}
+[2026-01-17 11:48:18] [INFO] Validation failed, trying self-healing (attempt 2)
+[2026-01-17 11:48:37] [INFO] Validation failed, trying self-healing (attempt 3)
+[2026-01-17 11:48:37] [ERROR] ✗ Scenario 87 FAILED: dpkg-query: no path found matching pattern /etc/inputrc
+
