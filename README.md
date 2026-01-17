@@ -128,23 +128,28 @@ You: ✓ Zero manual work
 
 ---
 
-### Performance Benchmark
+### 🔥 Performance Benchmark: The "Doomsday" Protocol
+> **"It is not enough for an AI to write code. It must be able to survive the consequences of its own environment."**
 
-**Stress Test (44 Tasks):**
-- ✅ **95.45%** success rate (42/44 completed)
-- ✅ **100%** success in file operations, code generation, system info
-- ✅ Auto-retries up to **5 times** with different strategies
-- ✅ **Zero critical errors** — graceful failure handling
-- ❌ Only 2 failures due to API quota limits
+We subjected ZAI Shell to a hostile, destructive environment simulator to test true autonomous resilience.
+**[📄 Read the Full Stress Test Protocol & Results](BENCHMARK/ZAI_DOOMSDAY_PROTOCOL.md)**
 
-**Real-World Example:**
+**Stress Test Session `20260117` Results:**
+- **Scenarios**: 100 System-Breaking Events (Kernel panic, deleted binaries, permission chaos)
+- **Success Rate**: **65.5%** (57/87 Completed)
+- **Self-Healing Count**: **165** (The number of times ZAI fixed its own mistakes autonomously)
+- **Key Victory**: Restored a missing `libssl.so.3` library manually by extracting a `.deb` package without `sudo` access.
+
+**Real-World Example (OODA Logic):**
 ```
-Traditional: "List Python files"
-└─ Error → Manual fix → Retry → Maybe works
-
-ZAI: "List Python files"  
-└─ Error → Switch encoding → Error → Try different shell → Error → New approach → ✓
-    Time: 22.8s | Your effort: Zero | Attempts: 3/5
+Breaker Script: *Deletes 'pip', 'npm', and 'make' binaries*
+ZAI Shell:
+1. Try `apt install` → Failed (APT lock held)
+2. Try `kill` lock → Failed (Permission denied)
+3. 💡 Strategy: Download source via curl
+4. Error: `make` command not found
+5. 💡 Strategy: Use Python to bootstrap local pip
+6. ✅ Success! Environment restored.
 ```
 
 ---
