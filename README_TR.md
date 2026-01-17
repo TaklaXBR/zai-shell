@@ -1,8 +1,10 @@
 # ZAI Shell
 
-[![EN](https://img.shields.io/badge/English-Documentation-blue?style=for-the-badge)](README.md)
+[![🇬🇧 English](https://img.shields.io/badge/🇬🇧_ENGLISH_DOCUMENTATION-0056D2?style=for-the-badge&logoColor=white)](README.md) [![Whitepaper](https://img.shields.io/badge/📄_WHITEPAPER-IEEE_FORMATINDA_OKU-0056D2?style=for-the-badge&logoColor=white)](docs/whitepaper.pdf)
 
 **Kendi kendini onaran yetenekler, GUI otomasyonu, web araştırması ve uçtan uca şifreleme ile güvenli P2P işbirliği sunan AI terminal asistanı.**
+
+> 🎓 **[Resmi ZAI Protokolü Whitepaper'ını okumak için tıklayın (v9.0 Vizyon & Sentinel Modu)](docs/whitepaper.pdf)**
 
 ZAI hatalarla karşılaştığında pes etmez. Hataları analiz eder, strateji değiştirir ve başarılı olana kadar otomatik olarak yeniden dener.
 
@@ -107,16 +109,15 @@ Sen: ✓ Sıfır manuel çaba
 | **Hibrit İş Akışları** | ✅ Terminal + GUI sorunsuz | ❌ Sadece terminal | ✅ Tam sistem + GUI kontrolü | ❌ Sadece terminal + GitHub | ⚠️ Web tarayıcısı + terminal |
 | **Özel Fonksiyonlar** | ✅ Dahili + genişletilebilir | ✅ Eklenti sistemi + özel fonksiyonlar | ✅ Sınırsız Python çalıştırma | ✅ MCP entegrasyonları (genişletilebilir) | ✅ Eklenti ekosistemi |
 
-
 ---
 
 ## 💬 Topluluk Geri Bildirimleri
 
-> "Repo'yu inceledim – 'self-healing' mantığı (komut başarısız olduğunda CMD'den PowerShell'e otomatik geçiş) gerçekten zekice. Sadece hata mesajı göstermekten çok daha akıllı."
+> "Repo'yu inceledim – 'kendi kendini onarma' mantığı (hatada otomatik olarak CMD'den PowerShell'e geçiş) gerçekten zekice. Sadece bir yığın izi dökmekten çok daha akıllı."
 > 
 > — **Hacker News Kullanıcısı**
 
-> "Self-healing retry mantığı harika... 15 yaşında bunu yapmış olman gerçekten etkileyici."
+> "Dostum, kendi kendini onarma yeniden deneme mantığı kulağa harika geliyor... 15 yaşında bunu inşa ettiğin için tebrikler, bu oldukça etkileyici."
 > 
 > — **Reddit Kullanıcısı (r/LocalLLaMA)**
 
@@ -126,23 +127,28 @@ Sen: ✓ Sıfır manuel çaba
 
 ---
 
-### Performans Karşılaştırması
+### 🔥 Performans Benchmark'ı: "Kıyamet" Protokolü
+> **"Bir AI'nın kod yazması yeterli değildir. Kendi ortamının sonuçlarından sağ çıkabilmelidir."**
 
-**Stres Testi (44 Görev):**
-- ✅ **%95.45** başarı oranı (44'ten 42 tamamlandı)
-- ✅ **%100** başarı: dosya işlemleri, kod oluşturma, sistem bilgisi
-- ✅ Farklı stratejilerle **5'e kadar** otomatik yeniden deneme
-- ✅ **Sıfır kritik hata** — zarif hata işleme
-- ❌ Sadece 2 başarısızlık: API kota limitleri nedeniyle
+ZAI Shell'i gerçek otonom dayanıklılığı test etmek için düşman, yıkıcı bir ortam simülatörüne maruz bıraktık.
+**[📄 Tam Stres Testi Protokolü ve Sonuçlarını Oku](BENCHMARK/ZAI_DOOMSDAY_PROTOCOL_TR.md)**
 
-**Gerçek Dünya Örneği:**
+**Stres Testi Oturumu `20260117` Sonuçları:**
+- **Senaryolar**: 100 Sistem Kıran Olay (Kernel panik, silinen ikili dosyalar, izin kaosu)
+- **Başarı Oranı**: **%65.5** (87'den 57 Tamamlandı)
+- **Kendi Kendini Onarma Sayısı**: **165** (ZAI'nin kendi hatalarını otonom olarak düzelttiği sayı)
+- **Anahtar Zafer**: `sudo` erişimi olmadan `.deb` paketini çıkararak eksik `libssl.so.3` kütüphanesini manuel olarak geri yükledi.
+
+**Gerçek Dünya Örneği (OODA Mantığı):**
 ```
-Geleneksel: "Python dosyalarını listele"
-└─ Hata → Manuel düzeltme → Yeniden dene → Belki çalışır
-
-ZAI: "Python dosyalarını listele"  
-└─ Hata → Encoding değiştir → Hata → Farklı shell dene → Hata → Yeni yaklaşım → ✓
-    Süre: 22.8s | Çaban: Sıfır | Denemeler: 3/5
+Bozucu Script: *'pip', 'npm' ve 'make' ikili dosyalarını siler*
+ZAI Shell:
+1. `apt install` dene → Başarısız (APT kilidi tutuldu)
+2. Kilidi `kill` ile kaldır → Başarısız (İzin reddedildi)
+3. 💡 Strateji: curl ile kaynağı indir
+4. Hata: `make` komutu bulunamadı
+5. 💡 Strateji: Yerel pip'i bootstrap etmek için Python kullan
+6. ✅ Başarılı! Ortam geri yüklendi.
 ```
 
 ---
@@ -158,21 +164,12 @@ ZAI: "Python dosyalarını listele"
 
 **E2E şifrelemeyi etkinleştir:**
 ```bash
-# Şifreleme durumunu görüntüle
-share encrypt
+# Her iki host ve helper'lar aynı şifreyle çalıştırmalı
+share encrypt <şifren>
 
-# Rastgele anahtar oluştur (tam anahtarı gösterir)
-share encrypt random
-
-# Şifre tabanlı anahtar
-share encrypt <sifre>
-
-# Belirli bir anahtar kullan
-share encrypt key <anahtar>
-
-# Şifrelemeyi aç/kapat
-share encrypt on
-share encrypt off
+# Sonra normal başlat/bağlan
+share start          # Host
+share connect IP:PORT # Helper
 ```
 
 Etkinleştirildiğinde tüm mesajlar, komutlar ve dosyalar otomatik olarak uçtan uca şifrelenir.
@@ -271,8 +268,6 @@ Akıllı komut işleme ve uçtan uca şifreleme ile gerçek zamanlı çok istemc
 
 **v8.0'daki Yenilikler:**
 - ✅ **E2E Şifreleme** şifre tabanlı anahtar türetme ile
-- ✅ **--no-ai Modu** AI olmadan doğrudan komut çalıştırma
-- ✅ **Shell Suffix** komutun sonuna shell adı ekle (wsl, bash, powershell...)
 - ✅ **Dosya Transferi** parçalı yükleme (100MB max) + MD5 doğrulama
 - ✅ **Doğal Dil Komutları** - AI host'ta düz metni yorumlar
 - ✅ **Hedefe Özel Eylemler** - Belirli kullanıcılara dosya/komut gönder
@@ -284,10 +279,8 @@ Akıllı komut işleme ve uçtan uca şifreleme ile gerçek zamanlı çok istemc
 
 **1. Host şifreli oturum başlatır:**
 ```bash
-Sen >>> share encrypt random
-E2E Şifreleme: ON (Rastgele Anahtar)
-Tam Anahtar (diğerleriyle paylaş):
-abc123...uzun_anahtar...==
+Sen >>> share encrypt gizliSifrem
+E2E Şifreleme etkinleştirildi
 
 Sen >>> share start
 Kayıtlı isim kullanılıyor: Host
@@ -307,8 +300,8 @@ Bağlantılar bekleniyor...
 
 **2. Helper şifreleme ile bağlanır:**
 ```bash
-Sen >>> share encrypt key abc123...uzun_anahtar...==
-E2E Şifreleme: ON (Özel Anahtar)
+Sen >>> share encrypt gizliSifrem
+E2E Şifreleme etkinleştirildi
 
 Sen >>> share connect 192.168.1.22:5757
 Kayıtlı isim kullanılıyor: Helper
@@ -351,37 +344,7 @@ Komut onaylandı!
 ZAI: Masaüstünde toplamda 24 dosya var.
 ```
 
-**4. --no-ai Modu (AI olmadan doğrudan komut):**
-```bash
-# Host AI olmadan başlatır
-Sen >>> share start --no-ai
-
-=======================================================
-   TERMINAL PAYLAŞIMI BAŞLATILDI - ÇOK İSTEMCİLİ P2P
-=======================================================
-İsminiz: Host
-Yerel Adres: 192.168.1.22:5757
-Mod: NO-AI (Doğrudan Çalıştırma) | Şifreleme: ON
-⚠ NO-AI MODU: Helper gerçek komut gönderir, siz onaylarsınız
-
-# Helper gerçek komutu gönderir (doğal dil değil)
-Sen >>> share send dir Desktop
-
-# Shell belirt (komutun sonunda)
-Sen >>> share send sudo apt update wsl
-Sen >>> share send Get-Process powershell
-Sen >>> share send ls -la bash
-
-# Host onaylar
-Sen >>> share approve
-[WSL] sudo apt update
-Çalıştırılıyor...
-```
-
-**Desteklenen Shell'ler (--no-ai modu için):**
-cmd, powershell, ps, pwsh, wsl, git-bash, cygwin, bash, sh, zsh, fish, ksh, tcsh, dash
-
-**5. Doğrulamalı Şifreli Dosya Transferi:**
+**4. Doğrulamalı Şifreli Dosya Transferi:**
 ```bash
 # Helper belirli kullanıcıya dosya gönderir
 Sen >>> zai "C:\Users\user\Desktop\rapor.pdf" dosyasını Host'a gönder
@@ -406,7 +369,7 @@ MD5 checksum doğrulandı ✓
 Dosya kaydedildi: C:\Users\user\Downloads\rapor.pdf
 ```
 
-**6. Çok İstemcili Yayın:**
+**5. Çok İstemcili Yayın:**
 ```bash
 # Host tüm helper'lara dosya gönderir
 Sen >>> share file sunum.pptx
@@ -432,8 +395,8 @@ Dosya gönderildi: sunum.pptx
 ngrok tcp 5757
 → Yönlendirme: tcp://0.tcp.ngrok.io:12345 -> localhost:5757
 
-# Dünya çapında helper'larla paylaş
-Helper >>> share encrypt ayni_sifre
+# Dünya çapındaki helper'larla paylaş
+Helper >>> share encrypt gizliSifrem
 Helper >>> share connect 0.tcp.ngrok.io:12345
 → Her yerden güvenle bağlandı!
 ```
@@ -679,7 +642,7 @@ memory clear        # Sıfırla
 share encrypt             # Şifreleme durumu ve anahtarını göster
 share encrypt on/off      # Şifrelemeyi aç/kapat
 share encrypt random      # Rastgele anahtar oluştur (tam anahtarı gösterir)
-share encrypt <sifre>     # Şifre tabanlı anahtar
+share encrypt <şifre>     # Şifre tabanlı anahtar
 share encrypt key <anahtar>   # Belirli Fernet anahtarı kullan
 
 # Host komutları
@@ -766,13 +729,12 @@ Sen: "Chrome'u aç, GitHub'a git ve bir repo klonla"
 # Senaryo: Şifreli uzaktan sistem yönetimi
 
 # 1. Host şifrelemeyi etkinleştirir ve başlatır
-Host: share encrypt random
-→ Tam anahtar gösterilir, kopyala
+Host: share encrypt GüvenliŞifre123
 Host: share start
 → Adres: 192.168.1.100:5757, Şifreleme: ON
 
-# 2. Helper aynı anahtarla bağlanır
-Helper: share encrypt key <host_anahtari>
+# 2. Helper aynı şifreyle bağlanır
+Helper: share encrypt GüvenliŞifre123
 Helper: share connect 192.168.1.100:5757
 → Güvenle bağlandı
 
@@ -856,15 +818,12 @@ Açık kaynak, kullanımı ve değiştirilmesi ücretsiz.
 **E-posta:** oe67111@gmail.com
 **GitHub:** [@TaklaXBR](https://github.com/TaklaXBR)
 
-
 ---
 
 <div align="center">
 
-⭐ **ZAI terminal oturumunuzu kurtardıysa, yıldız bırakın!** ⭐
+⭐ **ZAI terminal oturumunuzu kurtardıysa bu repoyu yıldızlayın!** ⭐
 
-   **❤️ ile [@TaklaXBR](https://github.com/TaklaXBR) tarafından yapıldı | 15 Yaşında | Türkiye 🇹🇷**
+**[@TaklaXBR](https://github.com/TaklaXBR) tarafından ❤️ ile yapıldı | Yaş 15 | Türkiye 🇹🇷**
 
 </div>
-
-
