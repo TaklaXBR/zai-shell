@@ -27,7 +27,8 @@ $env:GEMINI_API_KEY="your_key_here"
 
 # 3. Run
 git clone https://github.com/TaklaXBR/zai-shell.git
-python zaishell/zaishell.py
+cd zai-shell
+python zaishell.py
 ```
 *Optional: `pip install cryptography` (P2P Encryption), `chromadb` (Long-term Memory)*
 
