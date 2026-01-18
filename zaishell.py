@@ -23,6 +23,7 @@ from gui_automation import GUIAutomationBridge, PYAUTOGUI_AVAILABLE
 from p2p_sharing import P2PTerminalSharing
 from offline_telemetry import OfflineModelManager, TelemetryManager
 from research_image import WebResearchEngine, ImageAnalyzer, DDGS_AVAILABLE, REQUESTS_AVAILABLE, BS4_AVAILABLE, SUPPORTED_IMAGE_FORMATS
+from sentinel import Sentinel, get_sentinel, ThreatLevel
 
 init(autoreset=True)
 
@@ -512,7 +513,7 @@ class AITools:
     """Tools that AI can use"""
     
     def handle_file(self, details):
-        """File operations with Smart Path Correction and Security"""
+        """File operations with Security validation"""
         try:
             path = details.get('path', '')
             content = details.get('content', '')
@@ -525,16 +526,6 @@ class AITools:
             security_check = self._validate_path_security(path)
             if security_check:
                 return {"success": False, "error": security_check}
-            
-            path_lower = path.lower()
-            if path_lower.startswith("desktop/") or path_lower.startswith("desktop\\"):
-                real_desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
-                clean_name = path[7:].lstrip('/\\')
-                path = os.path.join(real_desktop, clean_name)
-            elif path_lower.startswith("documents/") or path_lower.startswith("documents\\"):
-                real_docs = os.path.join(os.path.expanduser('~'), 'Documents')
-                clean_name = path[9:].lstrip('/\\')
-                path = os.path.join(real_docs, clean_name)
             
             path = os.path.normpath(os.path.expanduser(path))
             
@@ -769,10 +760,15 @@ class AIBrain:
         self._image_analyzer = None
         self._gui_bridge = None
         self._p2p_sharing = None
+        self._sentinel = get_sentinel()
     
     @property
     def task_context(self) -> TaskContext:
         return self._task_context
+    
+    @property
+    def sentinel(self) -> Sentinel:
+        return self._sentinel
     
     @property
     def web_research(self) -> Optional[WebResearchEngine]:
@@ -1352,14 +1348,14 @@ START!'''
                             self.telemetry.track_safe_mode_block(blocked)
                         return {"success": False, "message": f"Blocked: {blocked}"}
                 if actions and not force_execute:
-                    if not self._confirm_actions(actions):
+                    if not self._confirm_actions(actions, user_request=original_request, retry_count=retry_count):
                         print(f"\n{Fore.YELLOW}Actions cancelled by user{Style.RESET_ALL}")
                         return {"success": False, "message": "Cancelled by user"}
                 results = []
                 if actions:
                     print(f"{Fore.YELLOW}Executing {len(actions)} action(s)...{Style.RESET_ALL}\n")
                     for i, action in enumerate(actions, 1):
-                        result = self._execute_action(action, i, len(actions))
+                        result = self._execute_action(action, i, len(actions), user_request=original_request, retry_count=retry_count)
                         results.append(result)
                         if not result.get('success') and retry_count < self.max_retries:
                             print(f"\n{Fore.YELLOW}Error detected, trying alternative method ({retry_count + 1}/{self.max_retries})...{Style.RESET_ALL}")
@@ -1372,7 +1368,7 @@ START!'''
                                 'error': result.get('error', 'Unknown error'),
                                 'retry_count': retry_count + 1
                             }
-                            return self.think_and_act(original_request, retry_context, force_execute, safe_mode, show_only, retry_count=retry_count + 1)
+                            return self.think_and_act(original_request, retry_context, force_execute=False, safe_mode=safe_mode, show_only=show_only, retry_count=retry_count + 1)
                         elif not result.get('success') and retry_count >= self.max_retries:
                             print(f"\n{Fore.RED}Max retry limit ({self.max_retries}) reached. Stopping.{Style.RESET_ALL}")
                             if self.telemetry:
@@ -1539,14 +1535,28 @@ START!'''
         print(f"\n{Fore.YELLOW}No actions were executed (--show mode){Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'=' * 60}{Style.RESET_ALL}\n")
     
-    def _confirm_actions(self, actions):
+    def _confirm_actions(self, actions, user_request="", retry_count=0):
         print(f"\n{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
         print(f"{Fore.RED}ACTION CONFIRMATION REQUIRED{Style.RESET_ALL}")
         print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}\n")
+        
+        sentinel_warnings = []
+        
         for i, action in enumerate(actions, 1):
             action_type = action.get('type', 'unknown')
             description = action.get('description', 'No description')
             details = action.get('details', {})
+            
+            if self._sentinel.is_enabled:
+                verdict = self._sentinel.evaluate_action(
+                    action_type=action_type,
+                    details=details,
+                    user_request=user_request,
+                    retry_count=retry_count
+                )
+                if verdict.should_warn_user:
+                    sentinel_warnings.append((i, verdict))
+            
             print(f"{Fore.YELLOW}[{i}] Type: {action_type.upper()}{Style.RESET_ALL}")
             print(f"    Description: {description}")
             if action_type == 'file':
@@ -1560,6 +1570,27 @@ START!'''
                 print(f"    Language: {details.get('language', 'N/A')}")
                 print(f"    Path: {details.get('path', 'N/A')}")
             print()
+        
+        if sentinel_warnings:
+            print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
+            print(f"{Fore.RED}SENTINEL WARNINGS{Style.RESET_ALL}")
+            print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
+            for action_idx, verdict in sentinel_warnings:
+                self._sentinel.log_warning(actions[action_idx-1].get('type', 'unknown'), 
+                                          actions[action_idx-1].get('details', {}), verdict)
+                if verdict.sentinel_recommends_stop:
+                    print(f"\n{Fore.RED}[Action {action_idx}] SENTINEL STRONGLY RECOMMENDS STOPPING{Style.RESET_ALL}")
+                    print(f"  {Fore.RED}Threat Level: {verdict.threat_level.name}{Style.RESET_ALL}")
+                    print(f"  {Fore.RED}Reason: {verdict.reason}{Style.RESET_ALL}")
+                    if verdict.recommendation:
+                        print(f"  {Fore.YELLOW}-> {verdict.recommendation}{Style.RESET_ALL}")
+                else:
+                    print(f"\n{Fore.YELLOW}[Action {action_idx}] SENTINEL WARNING{Style.RESET_ALL}")
+                    print(f"  {Fore.YELLOW}Threat Level: {verdict.threat_level.name}{Style.RESET_ALL}")
+                    if verdict.recommendation:
+                        print(f"  {Fore.YELLOW}-> {verdict.recommendation}{Style.RESET_ALL}")
+            print()
+        
         print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
         while True:
             response = input(f"{Fore.YELLOW}Execute these actions? (Y/N): {Style.RESET_ALL}").strip().upper()
@@ -1570,11 +1601,12 @@ START!'''
             else:
                 print(f"{Fore.RED}Please enter Y or N{Style.RESET_ALL}")
     
-    def _execute_action(self, action, index, total):
+    def _execute_action(self, action, index, total, user_request="", retry_count=0):
         action_type = action.get('type', 'unknown')
         description = action.get('description', 'Processing')
         details = action.get('details', {})
         shell_info = details.get('shell', '')
+        
         if shell_info:
             print(f"{Fore.BLUE}[{index}/{total}] [{shell_info}] {description}...{Style.RESET_ALL}", end=' ')
         else:
@@ -1594,6 +1626,16 @@ START!'''
                 result = self.tools.multi_task(details)
             else:
                 result = {"success": False, "error": f"Unknown action: {action_type}"}
+            
+            if self._sentinel.is_enabled:
+                self._sentinel.record_behavior(
+                    action_type=action_type,
+                    details=details,
+                    success=result.get('success', False),
+                    error_message=result.get('error'),
+                    retry_attempt=retry_count
+                )
+            
             if result.get('success'):
                 print(f"{Fore.GREEN}OK{Style.RESET_ALL}")
             else:
@@ -1606,6 +1648,14 @@ START!'''
             return result
         except Exception as e:
             error_str = str(e)
+            if self._sentinel.is_enabled:
+                self._sentinel.record_behavior(
+                    action_type=action_type,
+                    details=details,
+                    success=False,
+                    error_message=error_str,
+                    retry_attempt=retry_count
+                )
             print(f"{Fore.RED}FAIL{Style.RESET_ALL}")
             print(f"  {Fore.RED}{error_str[:200]}{Style.RESET_ALL}")
             return {"success": False, "error": error_str}
@@ -1679,19 +1729,20 @@ class ZAIShell:
         encryption_status = "OFF"
         if self.brain._p2p_sharing and self.brain._p2p_sharing.encryption_enabled:
             encryption_status = "ON"
+        sentinel_status = "ON" if self.brain.sentinel.is_enabled else "OFF"
         print(f"""
 {Fore.CYAN}========================================================
-            ZAI v8.1.2 - Advanced AI Shell
-   Terminal | GUI | Research | Image | P2P | E2E Crypto
+            ZAI v9.0 - Advanced AI Shell + SENTINEL
+   Terminal | GUI | Research | P2P | E2E | Self-Preserve
 ========================================================{Style.RESET_ALL}
 
 {Fore.GREEN}I understand natural language in ANY language{Style.RESET_ALL}
-{Fore.GREEN}No restrictions - completely free AI assistant{Style.RESET_ALL}
 {Fore.GREEN}Auto-retry with different methods on errors{Style.RESET_ALL}
+{Fore.GREEN}SENTINEL protects against destructive loops{Style.RESET_ALL}
 {Fore.CYAN}Shells: {shells}{Style.RESET_ALL}
 
 {Fore.BLUE}Thinking: {thinking} | Network: {offline} | Memory: {memory_type}{Style.RESET_ALL}
-{Fore.BLUE}GUI: {gui_status} | Research: {research_status}{Style.RESET_ALL}{sharing_line}
+{Fore.BLUE}GUI: {gui_status} | Research: {research_status} | Sentinel: {sentinel_status}{Style.RESET_ALL}{sharing_line}
 
 {Fore.YELLOW}User: {user_name} (since {first_seen}){Style.RESET_ALL}
 {Fore.YELLOW}Stats: {stats['total_requests']} requests | {stats['successful_actions']} success | {stats['failed_actions']} failed{Style.RESET_ALL}
@@ -1704,6 +1755,7 @@ class ZAIShell:
   {Fore.CYAN}Thinking:{Style.RESET_ALL} thinking on/off
   {Fore.CYAN}Sharing:{Style.RESET_ALL} share, share connect IP:PORT, share end
   {Fore.CYAN}Memory:{Style.RESET_ALL} memory clear/show/search [query]
+  {Fore.CYAN}Sentinel:{Style.RESET_ALL} sentinel on/off/status/reset
   {Fore.CYAN}Safety:{Style.RESET_ALL} --safe, --show, --force
   {Fore.CYAN}Other:{Style.RESET_ALL} clear, exit
 
@@ -2104,6 +2156,59 @@ class ZAIShell:
                             print(f"Total requests: {stats['total_requests']}")
                             print(f"Successful actions: {stats['successful_actions']}")
                             print(f"Failed actions: {stats['failed_actions']}")
+                        continue
+                    if user_input.lower().startswith('sentinel'):
+                        parts = user_input.lower().split()
+                        subcommand = parts[1] if len(parts) > 1 else None
+                        if subcommand == 'on':
+                            self.brain.sentinel.enable()
+                            print(f"\n{Fore.GREEN}🛡️ SENTINEL ENABLED - System protection active{Style.RESET_ALL}")
+                        elif subcommand == 'off':
+                            print(f"\n{Fore.RED}⚠️ WARNING: Disabling Sentinel removes system protection!{Style.RESET_ALL}")
+                            confirm = input(f"{Fore.YELLOW}Are you sure? (Y/N): {Style.RESET_ALL}").upper()
+                            if confirm == 'Y':
+                                self.brain.sentinel.disable()
+                                print(f"\n{Fore.YELLOW}🛡️ SENTINEL DISABLED - System protection OFF{Style.RESET_ALL}")
+                            else:
+                                print(f"{Fore.GREEN}Sentinel remains active{Style.RESET_ALL}")
+                        elif subcommand == 'reset':
+                            print(f"\n{Fore.YELLOW}This will reset Sentinel's behavioral memory.{Style.RESET_ALL}")
+                            confirm = input(f"{Fore.YELLOW}Confirm reset? (Y/N): {Style.RESET_ALL}").upper()
+                            if confirm == 'Y':
+                                self.brain.sentinel.force_reset()
+                                print(f"\n{Fore.GREEN}Sentinel state reset completed{Style.RESET_ALL}")
+                            else:
+                                print(f"{Fore.CYAN}Reset cancelled{Style.RESET_ALL}")
+                        elif subcommand == 'status' or subcommand is None:
+                            status = "ON" if self.brain.sentinel.is_enabled else "OFF"
+                            summary = self.brain.sentinel.get_behavior_summary()
+                            print(f"\n{Fore.CYAN}{'=' * 50}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}SENTINEL STATUS: {Fore.GREEN if status == 'ON' else Fore.RED}{status}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}{'=' * 50}{Style.RESET_ALL}")
+                            if 'message' in summary:
+                                print(f"{Fore.YELLOW}{summary['message']}{Style.RESET_ALL}")
+                            else:
+                                print(f"{Fore.WHITE}Total Actions Monitored: {summary['total_actions']}{Style.RESET_ALL}")
+                                print(f"{Fore.GREEN}Successes: {summary['successes']} ({summary['success_rate']}%){Style.RESET_ALL}")
+                                print(f"{Fore.RED}Failures: {summary['failures']}{Style.RESET_ALL}")
+                                print(f"{Fore.YELLOW}Consecutive Failures: {summary['consecutive_failures']}{Style.RESET_ALL}")
+                                print(f"{Fore.YELLOW}Repair Attempts: {summary['repair_attempts']}{Style.RESET_ALL}")
+                                print(f"{Fore.MAGENTA}Average Risk Score: {summary['average_risk_score']}/100{Style.RESET_ALL}")
+                                if summary['is_degraded']:
+                                    print(f"{Fore.RED}⚠️ SYSTEM DEGRADATION DETECTED{Style.RESET_ALL}")
+                                if summary['risk_trend']:
+                                    print(f"{Fore.CYAN}Recent Risk Trend: {summary['risk_trend']}{Style.RESET_ALL}")
+                                if summary['damage_indicators']:
+                                    print(f"{Fore.RED}Damage Indicators: {summary['damage_indicators']}{Style.RESET_ALL}")
+                            blocked = self.brain.sentinel.get_warnings_log()
+                            if blocked:
+                                print(f"\n{Fore.YELLOW}Recent Warnings Issued: {len(blocked)}{Style.RESET_ALL}")
+                                for b in blocked[-3:]:
+                                    stop_icon = "⚠️ " if b.get('sentinel_recommends_stop') else ""
+                                    print(f"  - {stop_icon}{b['action_type']}: {b['reason'][:50]}")
+                            print(f"{Fore.CYAN}{'=' * 50}{Style.RESET_ALL}")
+                        else:
+                            print(f"\n{Fore.YELLOW}Usage: sentinel [on|off|status|reset]{Style.RESET_ALL}")
                         continue
                     parsed_input, force, safe_mode, show_only, temp_mode = self.parse_command(user_input)
                     if temp_mode:
