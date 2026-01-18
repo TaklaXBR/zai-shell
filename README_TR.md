@@ -27,7 +27,8 @@ $env:GEMINI_API_KEY="anahtariniz_buraya"
 
 # 3. Çalıştır
 git clone https://github.com/TaklaXBR/zai-shell.git
-python zaishell/zaishell.py
+cd zai-shell
+python zaishell.py
 ```
 *İsteğe bağlı: `pip install cryptography` (P2P Şifreleme), `chromadb` (Uzun Süreli Bellek)*
 
@@ -210,3 +211,4 @@ ZAI Shell v9.0, sistem düzeyinde komutlar çalıştırabilen güçlü bir araç
 ---
 
 **❤️ ile yapıldı @TaklaXBR | Türkiye 🇹🇷**
+
