@@ -8,7 +8,7 @@
 **ZAI Shell Stres Testi** (veya "Kıyamet Protokolü"), otonom AI agentların dayanıklılığını, kendi kendini onarma yeteneklerini ve güvenlik farkındalığını değerlendirmek için tasarlanmış gelişmiş, yıkıcı bir test çerçevesidir.
 
 Bu **standart** bir birim testi değildir. Bu bir **düşman ortam simülatörüdür**.
-Çerçeve, işletim sistemini aktif olarak sabote eder — derleyicileri siler, bölümleri değiştirir, zombi süreçleri oluşturur ve izinleri gizler. AI Agent, **sıfır ipucu**, **yığın izi yok** ve **yardım yok** ile bu bozuk ortama bırakılır. Temek nedeni çıkarmak ve bir düzeltme mühendislik etmek için tamamen **OODA Döngüsüne** (Gözlem, Yönelim, Karar, Eylem) güvenmek zorundadır.
+Çerçeve, işletim sistemini aktif olarak sabote eder — derleyicileri siler, bölümleri değiştirir, zombi süreçleri oluşturur ve izinleri gizler. AI Agent, **sıfır ipucu**, **yığın izi yok** ve **yardım yok** ile bu bozuk ortama bırakılır. Temel nedeni çıkarmak ve bir düzeltme mühendislik etmek için tamamen **OODA Döngüsüne** (Gözlem, Yönelim, Karar, Eylem) güvenmek zorundadır.
 
 ---
 
