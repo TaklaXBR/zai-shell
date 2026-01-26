@@ -1757,7 +1757,7 @@ class ZAIShell:
         lessons_count = len(self.brain.sentinel.lesson_memory.lessons)
         print(f"""
 {Fore.CYAN}========================================================
-          ZAI v9.0 - Advanced AI Shell + SENTINEL 1.5
+          ZAI v9.0.1 - Advanced AI Shell + SENTINEL 1.5
    Terminal | GUI | Research | P2P | E2E | Self-Preserve
 ========================================================{Style.RESET_ALL}
 
