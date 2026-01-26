@@ -517,7 +517,9 @@ class AITools:
         try:
             path = details.get('path', '')
             content = details.get('content', '')
-            encoding = details.get('encoding') or SYSTEM_ENCODING
+            encoding = details.get('encoding')
+            if not encoding or str(encoding).lower() == 'system':
+                encoding = SYSTEM_ENCODING
             mode = details.get('mode', 'text')
             
             if not path:
@@ -599,7 +601,9 @@ class AITools:
         """Execute system command - optimized"""
         command = details.get('content', '')
         shell_type = details.get('shell', 'cmd').lower()
-        encoding = details.get('encoding') or SYSTEM_ENCODING
+        encoding = details.get('encoding')
+        if not encoding or str(encoding).lower() == 'system':
+            encoding = SYSTEM_ENCODING
         
         if not command:
             return {"success": False, "error": "Command not specified"}
@@ -1303,7 +1307,7 @@ RESPONSE FORMAT (JSON):
     ],
     "response": "Natural language response to user"
 }}
-ENCODING RULE: You MUST always specify encoding! Choose the most appropriate encoding for each task (utf-8 for text files, system encoding for shell commands).
+ENCODING RULE: You MUST always specify encoding! Use 'utf-8' for text files. For shell commands, use '{SYSTEM_ENCODING}' or 'utf-8'. NEVER output 'system' as the encoding string.
 CONVERSATION HISTORY:
 {history_text}
 CURRENT TASK:
@@ -1368,7 +1372,7 @@ START!'''
                                 'error': result.get('error', 'Unknown error'),
                                 'retry_count': retry_count + 1
                             }
-                            return self.think_and_act(original_request, retry_context, force_execute=False, safe_mode=safe_mode, show_only=show_only, retry_count=retry_count + 1)
+                            return self.think_and_act(original_request, retry_context, force_execute=force_execute, safe_mode=safe_mode, show_only=show_only, retry_count=retry_count + 1)
                         elif not result.get('success') and retry_count >= self.max_retries:
                             print(f"\n{Fore.RED}Max retry limit ({self.max_retries}) reached. Stopping.{Style.RESET_ALL}")
                             if self.telemetry:
@@ -1573,22 +1577,42 @@ START!'''
         
         if sentinel_warnings:
             print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
-            print(f"{Fore.RED}SENTINEL WARNINGS{Style.RESET_ALL}")
+            print(f"{Fore.RED}🛡️ SENTINEL 1.5 WARNINGS{Style.RESET_ALL}")
             print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
             for action_idx, verdict in sentinel_warnings:
                 self._sentinel.log_warning(actions[action_idx-1].get('type', 'unknown'), 
                                           actions[action_idx-1].get('details', {}), verdict)
                 if verdict.sentinel_recommends_stop:
-                    print(f"\n{Fore.RED}[Action {action_idx}] SENTINEL STRONGLY RECOMMENDS STOPPING{Style.RESET_ALL}")
-                    print(f"  {Fore.RED}Threat Level: {verdict.threat_level.name}{Style.RESET_ALL}")
-                    print(f"  {Fore.RED}Reason: {verdict.reason}{Style.RESET_ALL}")
-                    if verdict.recommendation:
-                        print(f"  {Fore.YELLOW}-> {verdict.recommendation}{Style.RESET_ALL}")
+                    print(f"\n{Fore.RED}[Action {action_idx}] SENTINEL WARNING - RECOMMENDS STOPPING{Style.RESET_ALL}")
                 else:
                     print(f"\n{Fore.YELLOW}[Action {action_idx}] SENTINEL WARNING{Style.RESET_ALL}")
-                    print(f"  {Fore.YELLOW}Threat Level: {verdict.threat_level.name}{Style.RESET_ALL}")
-                    if verdict.recommendation:
-                        print(f"  {Fore.YELLOW}-> {verdict.recommendation}{Style.RESET_ALL}")
+                
+                color = Fore.RED if verdict.sentinel_recommends_stop else Fore.YELLOW
+                print(f"  {color}Threat Level: {verdict.threat_level.name}{Style.RESET_ALL}")
+                
+                if verdict.risk_breakdown:
+                    rb = verdict.risk_breakdown
+                    if rb.total_score > 0:
+                        print(f"  {Fore.CYAN}Risk Breakdown:{Style.RESET_ALL}")
+                        if rb.structural_score > 0:
+                            print(f"    {Fore.WHITE}Structural: {rb.structural_score} - {'; '.join(rb.structural_reasons)}{Style.RESET_ALL}")
+                        if rb.behavioral_score > 0:
+                            print(f"    {Fore.WHITE}Behavioral: {rb.behavioral_score} - {'; '.join(rb.behavioral_reasons)}{Style.RESET_ALL}")
+                        if rb.contextual_score > 0:
+                            print(f"    {Fore.WHITE}Contextual: {rb.contextual_score} - {'; '.join(rb.contextual_reasons)}{Style.RESET_ALL}")
+                        if rb.intent_score > 0:
+                            print(f"    {Fore.WHITE}Intent: {rb.intent_score} - {'; '.join(rb.intent_reasons)}{Style.RESET_ALL}")
+                        print(f"    {Fore.MAGENTA}Total Risk: {rb.total_score}/100{Style.RESET_ALL}")
+                        if rb.is_accumulated:
+                            print(f"    {Fore.RED}⚠️ Risk is accumulated, not sudden.{Style.RESET_ALL}")
+                
+                if verdict.lessons_applied:
+                    print(f"  {Fore.CYAN}Past Lessons:{Style.RESET_ALL}")
+                    for lesson in verdict.lessons_applied:
+                        print(f"    {Fore.WHITE}📚 {lesson.trigger} → {lesson.consequence} ({lesson.times_seen}x){Style.RESET_ALL}")
+                
+                if verdict.recommendation:
+                    print(f"  {Fore.GREEN}→ {verdict.recommendation}{Style.RESET_ALL}")
             print()
         
         print(f"{Fore.RED}{'=' * 60}{Style.RESET_ALL}")
@@ -1730,15 +1754,16 @@ class ZAIShell:
         if self.brain._p2p_sharing and self.brain._p2p_sharing.encryption_enabled:
             encryption_status = "ON"
         sentinel_status = "ON" if self.brain.sentinel.is_enabled else "OFF"
+        lessons_count = len(self.brain.sentinel.lesson_memory.lessons)
         print(f"""
 {Fore.CYAN}========================================================
-            ZAI v9.0 - Advanced AI Shell + SENTINEL
+          ZAI v9.0 - Advanced AI Shell + SENTINEL 1.5
    Terminal | GUI | Research | P2P | E2E | Self-Preserve
 ========================================================{Style.RESET_ALL}
 
 {Fore.GREEN}I understand natural language in ANY language{Style.RESET_ALL}
 {Fore.GREEN}Auto-retry with different methods on errors{Style.RESET_ALL}
-{Fore.GREEN}SENTINEL protects against destructive loops{Style.RESET_ALL}
+{Fore.GREEN}SENTINEL 1.5: Observes, understands, explains - but never judges{Style.RESET_ALL}
 {Fore.CYAN}Shells: {shells}{Style.RESET_ALL}
 
 {Fore.BLUE}Thinking: {thinking} | Network: {offline} | Memory: {memory_type}{Style.RESET_ALL}
@@ -2182,33 +2207,62 @@ class ZAIShell:
                         elif subcommand == 'status' or subcommand is None:
                             status = "ON" if self.brain.sentinel.is_enabled else "OFF"
                             summary = self.brain.sentinel.get_behavior_summary()
-                            print(f"\n{Fore.CYAN}{'=' * 50}{Style.RESET_ALL}")
-                            print(f"{Fore.CYAN}SENTINEL STATUS: {Fore.GREEN if status == 'ON' else Fore.RED}{status}{Style.RESET_ALL}")
-                            print(f"{Fore.CYAN}{'=' * 50}{Style.RESET_ALL}")
+                            print(f"\n{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}🛡️ SENTINEL 1.5 STATUS: {Fore.GREEN if status == 'ON' else Fore.RED}{status}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
                             if 'message' in summary:
                                 print(f"{Fore.YELLOW}{summary['message']}{Style.RESET_ALL}")
                             else:
-                                print(f"{Fore.WHITE}Total Actions Monitored: {summary['total_actions']}{Style.RESET_ALL}")
-                                print(f"{Fore.GREEN}Successes: {summary['successes']} ({summary['success_rate']}%){Style.RESET_ALL}")
-                                print(f"{Fore.RED}Failures: {summary['failures']}{Style.RESET_ALL}")
+                                print(f"{Fore.WHITE}Monitored Actions: {summary['total_actions']}{Style.RESET_ALL}")
+                                print(f"{Fore.GREEN}Successful: {summary['successes']} ({summary['success_rate']}%){Style.RESET_ALL}")
+                                print(f"{Fore.RED}Failed: {summary['failures']}{Style.RESET_ALL}")
                                 print(f"{Fore.YELLOW}Consecutive Failures: {summary['consecutive_failures']}{Style.RESET_ALL}")
                                 print(f"{Fore.YELLOW}Repair Attempts: {summary['repair_attempts']}{Style.RESET_ALL}")
-                                print(f"{Fore.MAGENTA}Average Risk Score: {summary['average_risk_score']}/100{Style.RESET_ALL}")
+                                print(f"{Fore.MAGENTA}Average Risk: {summary['average_risk_score']}/100{Style.RESET_ALL}")
+                                print(f"{Fore.CYAN}Lessons Learned: {summary.get('lessons_learned', 0)}{Style.RESET_ALL}")
+                                print(f"{Fore.CYAN}Warnings This Session: {summary.get('warnings_this_session', 0)}{Style.RESET_ALL}")
+                                if summary.get('is_panic_mode'):
+                                    print(f"{Fore.RED}⚠️ PANIC MODE ACTIVE{Style.RESET_ALL}")
                                 if summary['is_degraded']:
                                     print(f"{Fore.RED}⚠️ SYSTEM DEGRADATION DETECTED{Style.RESET_ALL}")
                                 if summary['risk_trend']:
-                                    print(f"{Fore.CYAN}Recent Risk Trend: {summary['risk_trend']}{Style.RESET_ALL}")
+                                    print(f"{Fore.CYAN}Risk Trend: {summary['risk_trend']}{Style.RESET_ALL}")
                                 if summary['damage_indicators']:
                                     print(f"{Fore.RED}Damage Indicators: {summary['damage_indicators']}{Style.RESET_ALL}")
                             blocked = self.brain.sentinel.get_warnings_log()
                             if blocked:
-                                print(f"\n{Fore.YELLOW}Recent Warnings Issued: {len(blocked)}{Style.RESET_ALL}")
+                                print(f"\n{Fore.YELLOW}Recent Warnings: {len(blocked)}{Style.RESET_ALL}")
                                 for b in blocked[-3:]:
                                     stop_icon = "⚠️ " if b.get('sentinel_recommends_stop') else ""
-                                    print(f"  - {stop_icon}{b['action_type']}: {b['reason'][:50]}")
-                            print(f"{Fore.CYAN}{'=' * 50}{Style.RESET_ALL}")
+                                    rb = b.get('risk_breakdown', {})
+                                    acc = " [accumulated]" if rb.get('is_accumulated') else ""
+                                    print(f"  - {stop_icon}{b['action_type']}: {b['reason'][:40]}{acc}")
+                            lessons = self.brain.sentinel.get_lessons_summary()
+                            if lessons:
+                                print(f"\n{Fore.CYAN}📚 Lessons Learned:{Style.RESET_ALL}")
+                                for l in lessons[:5]:
+                                    print(f"  - [{l['type']}] {l['trigger'][:30]} → {l['consequence'][:30]} ({l['times_seen']}x)")
+                            print(f"{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
+                        elif subcommand == 'lessons':
+                            lessons = self.brain.sentinel.get_lessons_summary()
+                            print(f"\n{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}📚 SENTINEL LESSON MEMORY{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
+                            if lessons:
+                                for l in lessons:
+                                    print(f"  [{l['type']}] {l['trigger']} → {l['consequence']} ({l['times_seen']}x)")
+                            else:
+                                print(f"{Fore.YELLOW}No lessons learned yet.{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
+                        elif subcommand == 'clear-lessons':
+                            print(f"{Fore.YELLOW}This will clear all lessons learned by Sentinel.{Style.RESET_ALL}")
+                            if input(f"{Fore.RED}Are you sure? (Y/N): {Style.RESET_ALL}").strip().upper() == 'Y':
+                                self.brain.sentinel.clear_lessons()
+                                print(f"{Fore.GREEN}Lessons cleared{Style.RESET_ALL}")
+                            else:
+                                print(f"{Fore.CYAN}Cancelled{Style.RESET_ALL}")
                         else:
-                            print(f"\n{Fore.YELLOW}Usage: sentinel [on|off|status|reset]{Style.RESET_ALL}")
+                            print(f"\n{Fore.YELLOW}Usage: sentinel [on|off|status|reset|lessons|clear-lessons]{Style.RESET_ALL}")
                         continue
                     parsed_input, force, safe_mode, show_only, temp_mode = self.parse_command(user_input)
                     if temp_mode:
