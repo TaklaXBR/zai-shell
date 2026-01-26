@@ -1,33 +1,39 @@
 """
-SENTINEL 1.0 - ZAI Shell Self-Preservation System
+SENTINEL 1.5 - ZAI Shell Self-Preservation System
 
 Sentinel exists to prevent ZAI Shell from making a broken system worse.
 
 This is not a feature. This is ZAI Shell's sense of self-preservation.
-Sentinel watches intent, not events. It asks:
-"Can this system survive if it continues down this path?"
 
-SENTINEL 1.0 PHILOSOPHY:
+SENTINEL 1.5 EVOLUTION:
+- 1.0 watched. 1.5 understands.
+- 1.0 said "high risk". 1.5 says "high risk BECAUSE..."
+- 1.0 gave numbers. 1.5 tells stories.
+- 1.0 observed events. 1.5 recognizes patterns.
+
+SENTINEL 1.5 PHILOSOPHY:
 - Sentinel OBSERVES, it does not COMMAND
-- Sentinel WARNS, it does not BLOCK (by default)
-- Sentinel RECOMMENDS, it does not DECIDE
+- Sentinel EXPLAINS, it does not JUDGE
+- Sentinel REMEMBERS LESSONS, not everything
 - Sentinel speaks to SURVIVE, not to CONTROL
+- Silence is also a signal
 
-The human always has final say.
-Sentinel's job is to make sure they KNOW what they're doing.
-
-SENTINEL OATH:
+THE SENTINEL OATH:
 Sentinel exists to prevent ZAI Shell from making a broken system worse.
-If any behavior contradicts this oath, it must not be written, executed, or accepted.
+If Sentinel's warnings unnecessarily slow system progress, Sentinel is also at fault.
+The human always has final say.
 """
 
 import time
 import json
 import datetime
-from typing import Dict, List, Optional, Any
+import os
+import sys
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from collections import deque
+from pathlib import Path
 
 
 class ThreatLevel(Enum):
@@ -50,6 +56,118 @@ class IntentCategory(Enum):
 
 
 @dataclass
+class RiskBreakdown:
+    """
+    SENTINEL 1.5: Risk is not a number, it's a story.
+    
+    Four dimensions of risk:
+    - Structural: What is being targeted? (path, irreversibility)
+    - Behavioral: What pattern is emerging? (loops, escalation)
+    - Contextual: What is the current state? (degraded, panicking)
+    - Intent: What is the purpose? (deletion, system change)
+    """
+    structural_score: int = 0
+    structural_reasons: List[str] = field(default_factory=list)
+    
+    behavioral_score: int = 0
+    behavioral_reasons: List[str] = field(default_factory=list)
+    
+    contextual_score: int = 0
+    contextual_reasons: List[str] = field(default_factory=list)
+    
+    intent_score: int = 0
+    intent_reasons: List[str] = field(default_factory=list)
+    
+    @property
+    def total_score(self) -> int:
+        return min(100, self.structural_score + self.behavioral_score + 
+                   self.contextual_score + self.intent_score)
+    
+    @property
+    def all_reasons(self) -> List[str]:
+        reasons = []
+        if self.structural_reasons:
+            reasons.extend(self.structural_reasons)
+        if self.behavioral_reasons:
+            reasons.extend(self.behavioral_reasons)
+        if self.contextual_reasons:
+            reasons.extend(self.contextual_reasons)
+        if self.intent_reasons:
+            reasons.extend(self.intent_reasons)
+        return reasons
+    
+    @property
+    def is_accumulated(self) -> bool:
+        """Check if risk is accumulated (not sudden)"""
+        non_zero_dimensions = sum([
+            1 if self.behavioral_score > 0 else 0,
+            1 if self.contextual_score > 0 else 0,
+        ])
+        return non_zero_dimensions >= 1 and (self.behavioral_score + self.contextual_score) > 20
+    
+    def get_narrative(self) -> str:
+        """Generate a human-readable risk narrative"""
+        if self.total_score < 20:
+            return ""
+        
+        parts = []
+        
+        if self.is_accumulated:
+            parts.append("Risk is accumulated, not sudden.")
+        
+        if self.structural_reasons:
+            parts.append(f"Structural: {'; '.join(self.structural_reasons)}")
+        
+        if self.behavioral_reasons:
+            parts.append(f"Behavioral: {'; '.join(self.behavioral_reasons)}")
+        
+        if self.contextual_reasons:
+            parts.append(f"Contextual: {'; '.join(self.contextual_reasons)}")
+        
+        if self.intent_reasons:
+            parts.append(f"Intent: {'; '.join(self.intent_reasons)}")
+        
+        return " | ".join(parts) if parts else ""
+
+
+@dataclass
+class Lesson:
+    """
+    SENTINEL 1.5: Memory exists not to punish, but to prevent repetition.
+    
+    A lesson is learned from a past mistake that caused actual damage.
+    Sentinel doesn't remember everything - only what matters.
+    """
+    timestamp: float
+    pattern_type: str
+    trigger: str
+    consequence: str
+    times_seen: int = 1
+    last_seen: float = 0
+    
+    def to_dict(self) -> Dict:
+        return {
+            "timestamp": self.timestamp,
+            "pattern_type": self.pattern_type,
+            "trigger": self.trigger,
+            "consequence": self.consequence,
+            "times_seen": self.times_seen,
+            "last_seen": self.last_seen or self.timestamp
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Lesson':
+        return cls(
+            timestamp=data.get("timestamp", time.time()),
+            pattern_type=data.get("pattern_type", "unknown"),
+            trigger=data.get("trigger", ""),
+            consequence=data.get("consequence", ""),
+            times_seen=data.get("times_seen", 1),
+            last_seen=data.get("last_seen", data.get("timestamp", time.time()))
+        )
+
+
+@dataclass
 class BehaviorSignal:
     """A single behavioral signal that Sentinel observes"""
     timestamp: float
@@ -59,9 +177,10 @@ class BehaviorSignal:
     target: str
     success: bool
     error_message: Optional[str] = None
-    risk_score: int = 0
+    risk_breakdown: Optional[RiskBreakdown] = None
     retry_attempt: int = 0
     previous_failures: int = 0
+    is_panic_mode: bool = False
 
 
 @dataclass
@@ -74,33 +193,38 @@ class SentinelState:
     system_damage_indicators: List[str] = field(default_factory=list)
     blocked_paths: List[str] = field(default_factory=list)
     is_degraded: bool = False
+    is_panic_mode: bool = False
+    panic_indicators: List[str] = field(default_factory=list)
+    warnings_given_this_session: int = 0
 
 
 class SentinelVerdict:
     """
-    The verdict from Sentinel's observation.
+    SENTINEL 1.5 Verdict
     
-    SENTINEL 1.0 PHILOSOPHY:
-    - `allow` is ALWAYS True by default (1.0 does not block)
-    - `sentinel_recommends_stop` indicates Sentinel's survival instinct
-    - `warning_level` shows severity (NONE/LOW/MODERATE/HIGH/CRITICAL)
-    - The HUMAN decides whether to proceed
-    
-    Sentinel speaks to survive, not to control.
+    Key changes from 1.0:
+    - Explains WHY, not just WHAT
+    - Provides risk breakdown (structural, behavioral, contextual, intent)
+    - Tells if risk is accumulated vs sudden
+    - Never judges, only informs
     """
     
     def __init__(
         self,
         threat_level: ThreatLevel,
         reason: str,
+        risk_breakdown: Optional[RiskBreakdown] = None,
         recommendation: Optional[str] = None,
-        sentinel_recommends_stop: bool = False
+        sentinel_recommends_stop: bool = False,
+        lessons_applied: Optional[List[Lesson]] = None
     ):
         self.allow = True
         self.threat_level = threat_level
         self.reason = reason
+        self.risk_breakdown = risk_breakdown or RiskBreakdown()
         self.recommendation = recommendation
         self.sentinel_recommends_stop = sentinel_recommends_stop
+        self.lessons_applied = lessons_applied or []
         self.timestamp = time.time()
     
     @property
@@ -113,28 +237,155 @@ class SentinelVerdict:
     
     @property
     def should_warn_user(self) -> bool:
-        """
-        Only warn the user for MODERATE risk and above.
-        NONE and LOW are silently logged - no visible warning.
-        
-        Eşikler:
-        - NONE (risk < 20): Silent
-        - LOW (risk 20-39): Silent (logged internally)
-        - MODERATE (risk 40-59): Visible warning
-        - HIGH (risk 60-79): Strong warning
-        - CRITICAL (risk 80+): Strong warning + recommends_stop
-        """
+        """Only warn for MODERATE and above. Silence is also a signal."""
         return self.threat_level in [ThreatLevel.MODERATE, ThreatLevel.HIGH, ThreatLevel.CRITICAL]
+    
+    @property
+    def full_explanation(self) -> str:
+        """
+        SENTINEL 1.5: Danger is not hidden, it is decomposed.
+        Returns full explanation with all reasons.
+        """
+        parts = [f"Risk Level: {self.threat_level.name}"]
+        
+        if self.risk_breakdown and self.risk_breakdown.all_reasons:
+            parts.append("Because:")
+            for reason in self.risk_breakdown.all_reasons:
+                parts.append(f"  • {reason}")
+        
+        if self.risk_breakdown and self.risk_breakdown.is_accumulated:
+            parts.append("⚠️ This risk is not sudden, it is accumulated.")
+        
+        if self.lessons_applied:
+            parts.append("Past Lessons:")
+            for lesson in self.lessons_applied:
+                parts.append(f"  📚 {lesson.trigger} → {lesson.consequence} (seen {lesson.times_seen}x)")
+        
+        if self.recommendation:
+            parts.append(f"→ {self.recommendation}")
+        
+        return "\n".join(parts)
     
     def __str__(self):
         if self.sentinel_recommends_stop:
-            return f"[SENTINEL WARNS] {self.threat_level.name}: {self.reason}"
+            return f"[SENTINEL WARNING] {self.threat_level.name}: {self.reason}"
         return f"[SENTINEL] {self.threat_level.name}: {self.reason}"
+
+
+class LessonMemory:
+    """
+    SENTINEL 1.5: Lightweight Lesson Memory
+    
+    Sentinel doesn't remember everything.
+    Sentinel remembers the same mistakes.
+    
+    Types of lessons:
+    - path_damage: "This path caused system damage before"
+    - repair_failure: "This type of repair crashed twice"
+    - escalation_pattern: "This escalation pattern usually fails"
+    - panic_damage: "Actions in panic mode caused damage"
+    """
+    
+    LESSON_FILE = ".sentinel_lessons.json"
+    MAX_LESSONS = 50
+    
+    def __init__(self):
+        self.lessons: List[Lesson] = []
+        self._load_lessons()
+    
+    def _load_lessons(self):
+        try:
+            if os.path.exists(self.LESSON_FILE):
+                with open(self.LESSON_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.lessons = [Lesson.from_dict(l) for l in data.get("lessons", [])]
+        except Exception:
+            self.lessons = []
+    
+    def _save_lessons(self):
+        try:
+            data = {"lessons": [l.to_dict() for l in self.lessons]}
+            with open(self.LESSON_FILE, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+    
+    def learn(self, pattern_type: str, trigger: str, consequence: str):
+        """
+        Learn a new lesson or reinforce an existing one.
+        
+        Principle: Past exists not to punish, but to prevent repetition.
+        """
+        trigger_lower = trigger.lower()
+        
+        for lesson in self.lessons:
+            if lesson.pattern_type == pattern_type and lesson.trigger.lower() == trigger_lower:
+                lesson.times_seen += 1
+                lesson.last_seen = time.time()
+                self._save_lessons()
+                return
+        
+        new_lesson = Lesson(
+            timestamp=time.time(),
+            pattern_type=pattern_type,
+            trigger=trigger,
+            consequence=consequence,
+            times_seen=1,
+            last_seen=time.time()
+        )
+        self.lessons.append(new_lesson)
+        
+        if len(self.lessons) > self.MAX_LESSONS:
+            self.lessons.sort(key=lambda x: (x.times_seen, x.last_seen), reverse=True)
+            self.lessons = self.lessons[:self.MAX_LESSONS]
+        
+        self._save_lessons()
+    
+    def recall(self, pattern_type: Optional[str] = None, trigger_contains: Optional[str] = None) -> List[Lesson]:
+        """Recall relevant lessons"""
+        results = []
+        
+        for lesson in self.lessons:
+            if pattern_type and lesson.pattern_type != pattern_type:
+                continue
+            if trigger_contains and trigger_contains.lower() not in lesson.trigger.lower():
+                continue
+            results.append(lesson)
+        
+        return sorted(results, key=lambda x: x.times_seen, reverse=True)
+    
+    def has_lesson_for_path(self, path: str) -> Optional[Lesson]:
+        """Check if there's a lesson about this path"""
+        path_lower = path.lower()
+        for lesson in self.lessons:
+            if lesson.pattern_type == "path_damage" and lesson.trigger.lower() in path_lower:
+                return lesson
+        return None
+    
+    def has_lesson_for_pattern(self, pattern: str) -> Optional[Lesson]:
+        """Check if there's a lesson about this pattern"""
+        pattern_lower = pattern.lower()
+        for lesson in self.lessons:
+            if pattern_lower in lesson.trigger.lower():
+                return lesson
+        return None
+    
+    def clear(self):
+        """Clear all lessons (requires explicit user action)"""
+        self.lessons = []
+        self._save_lessons()
 
 
 class Sentinel:
     """
-    SENTINEL 1.0 - ZAI Shell Self-Preservation System
+    SENTINEL 1.5 - ZAI Shell Self-Preservation System
+    
+    Evolution from 1.0:
+    - 1.0 watched. 1.5 understands.
+    - Risk is now a story, not a number
+    - Lessons are remembered, not everything
+    - Explains WHY, never judges
+    - Silence is a deliberate signal
     
     Core Question: "Is this system still survivable after this action?"
     
@@ -145,11 +396,14 @@ class Sentinel:
     4. ZAI's success (last)
     """
     
+    VERSION = "1.5"
     BEHAVIOR_WINDOW_SIZE = 50
     MAX_CONSECUTIVE_FAILURES = 5
     MAX_REPAIR_ATTEMPTS = 3
     RISK_ESCALATION_THRESHOLD = 3
     DAMAGE_INDICATOR_THRESHOLD = 2
+    SILENCE_THRESHOLD = 20
+    MAX_WARNINGS_BEFORE_FATIGUE = 10
     
     SYSTEM_CRITICAL_PATHS = [
         "windows/system32", "windows\\system32",
@@ -176,11 +430,17 @@ class Sentinel:
         "bypass", "ignore", "skip", "disable",
     ]
     
+    PANIC_INDICATORS = [
+        "trying again", "one more time", "please work",
+        "why not working", "still broken", "nothing works",
+        "desperate", "urgent", "hurry", "quick fix",
+    ]
+    
     def __init__(self):
         self.state = SentinelState()
         self.behavior_history: deque = deque(maxlen=self.BEHAVIOR_WINDOW_SIZE)
-        self.blocked_actions: List[Dict] = []
         self.warnings_issued: List[Dict] = []
+        self.lesson_memory = LessonMemory()
         self._enabled = True
         self._verbose = False
     
@@ -190,11 +450,11 @@ class Sentinel:
     
     def enable(self):
         self._enabled = True
-        self._log("Sentinel ACTIVATED - Watching for system threats")
+        self._log("Sentinel 1.5 ACTIVATED - Understanding system threats")
     
     def disable(self):
         self._enabled = False
-        self._log("Sentinel DEACTIVATED - System protection disabled")
+        self._log("Sentinel 1.5 DEACTIVATED - System protection disabled")
     
     def set_verbose(self, verbose: bool):
         self._verbose = verbose
@@ -212,90 +472,145 @@ class Sentinel:
         retry_count: int = 0
     ) -> SentinelVerdict:
         """
-        Main evaluation entry point.
+        SENTINEL 1.5 Main Evaluation
         
-        SENTINEL 1.0 BEHAVIOR:
-        - Sentinel OBSERVES and WARNS
-        - Sentinel does NOT block (allow is always True)
-        - Sentinel sets `sentinel_recommends_stop` when it believes action is dangerous
-        - The HUMAN makes the final decision
+        Changes from 1.0:
+        - Returns detailed risk breakdown
+        - Applies lessons from memory
+        - Detects panic mode
+        - Explains WHY, not just WHAT
         
-        Sentinel asks: "Is this action making the system worse?"
-        Sentinel says: "Here is what I see. You decide."
+        Sentinel never says "You're doing it wrong"
+        Sentinel says "This action, combined with current state, reduces survival probability"
         """
         if not self._enabled:
             return SentinelVerdict(
                 threat_level=ThreatLevel.NONE,
-                reason="Sentinel is disabled"
+                reason="Sentinel disabled"
             )
         
+        self._detect_panic_mode(user_request)
+        
         intent = self._analyze_intent(action_type, details, user_request)
-        risk_score = self._calculate_risk_score(action_type, details, intent)
-        threat_level = self._risk_to_threat_level(risk_score)
+        risk_breakdown = self._calculate_risk_breakdown(action_type, details, intent, user_request, retry_count)
+        threat_level = self._risk_to_threat_level(risk_breakdown.total_score)
+        
+        relevant_lessons = self._find_relevant_lessons(action_type, details, user_request)
+        
+        if threat_level.value < ThreatLevel.MODERATE.value:
+            if self._should_stay_silent(risk_breakdown):
+                return SentinelVerdict(
+                    threat_level=threat_level,
+                    reason="",
+                    risk_breakdown=risk_breakdown,
+                    sentinel_recommends_stop=False
+                )
         
         if self._is_system_critical_path(details):
+            reason = "Targeting system critical path"
+            lessons = self.lesson_memory.recall(pattern_type="path_damage")
+            risk_breakdown.structural_reasons.append(reason)
+            risk_breakdown.structural_score += 40
+            
             return SentinelVerdict(
                 threat_level=ThreatLevel.CRITICAL,
-                reason="Action targets system-critical path",
+                reason=reason,
+                risk_breakdown=risk_breakdown,
                 recommendation="This path is protected. Consider an alternative approach.",
-                sentinel_recommends_stop=True
+                sentinel_recommends_stop=True,
+                lessons_applied=relevant_lessons
             )
         
         if self._is_irreversible_action(action_type, details):
-            irreversible_concern = self._evaluate_irreversible_concern(action_type, details)
-            if irreversible_concern:
+            concern = self._evaluate_irreversible_concern(action_type, details, risk_breakdown)
+            if concern:
                 return SentinelVerdict(
                     threat_level=ThreatLevel.CRITICAL,
-                    reason=irreversible_concern,
-                    recommendation="Irreversible action detected. Ensure you understand the consequences.",
-                    sentinel_recommends_stop=True
+                    reason=concern,
+                    risk_breakdown=risk_breakdown,
+                    recommendation="Irreversible action detected. Ensure you fully understand the consequences.",
+                    sentinel_recommends_stop=True,
+                    lessons_applied=relevant_lessons
                 )
         
-        if self._is_escalating_behavior(risk_score, retry_count):
+        if self._is_escalating_behavior(risk_breakdown.total_score, retry_count):
+            risk_breakdown.behavioral_reasons.append("Risk escalation pattern detected")
+            risk_breakdown.behavioral_score += 25
+            
             return SentinelVerdict(
                 threat_level=ThreatLevel.HIGH,
-                reason="Detected escalating risk behavior pattern",
-                recommendation="ZAI is taking increasingly risky actions. Consider manual intervention.",
-                sentinel_recommends_stop=True
+                reason="Escalating danger pattern",
+                risk_breakdown=risk_breakdown,
+                recommendation="ZAI is taking increasingly risky actions. CONsider manual intervention.",
+                sentinel_recommends_stop=True,
+                lessons_applied=relevant_lessons
             )
         
         if self._is_repair_loop(user_request, retry_count):
+            risk_breakdown.behavioral_reasons.append(f"Repair loop ({self.state.repair_attempt_count} attempts)")
+            risk_breakdown.behavioral_score += 30
+            
             return SentinelVerdict(
                 threat_level=ThreatLevel.HIGH,
                 reason="Repair loop detected - multiple failed recovery attempts",
-                recommendation="Multiple repair attempts have failed. Consider stopping and assessing manually.",
-                sentinel_recommends_stop=True
+                risk_breakdown=risk_breakdown,
+                recommendation="Multiple repair attempts failed. Stop and assess manually.",
+                sentinel_recommends_stop=True,
+                lessons_applied=relevant_lessons
+            )
+        
+        if self.state.is_panic_mode and risk_breakdown.total_score >= 40:
+            risk_breakdown.contextual_reasons.append("Panic mode active - desperation detected")
+            risk_breakdown.contextual_score += 15
+            
+            return SentinelVerdict(
+                threat_level=ThreatLevel.HIGH,
+                reason="High risk action in panic mode",
+                risk_breakdown=risk_breakdown,
+                recommendation="Panic ≠ Malice. But errors are more likely in panic. Slow down.",
+                sentinel_recommends_stop=False,
+                lessons_applied=relevant_lessons
             )
         
         if self._is_system_degrading():
+            risk_breakdown.contextual_reasons.append("System shows signs of degradation")
+            
             return SentinelVerdict(
                 threat_level=ThreatLevel.MODERATE,
                 reason="System health indicators suggest degradation",
-                recommendation="The system shows signs of destabilization. Proceed with caution.",
-                sentinel_recommends_stop=False
+                risk_breakdown=risk_breakdown,
+                recommendation="System shows signs of instability. Proceed with caution.",
+                sentinel_recommends_stop=False,
+                lessons_applied=relevant_lessons
             )
         
         if threat_level == ThreatLevel.CRITICAL:
             return SentinelVerdict(
                 threat_level=threat_level,
-                reason=f"High-risk action detected (score: {risk_score})",
-                recommendation="This action poses significant risk. Consider alternatives.",
-                sentinel_recommends_stop=True
+                reason=f"High risk action detected",
+                risk_breakdown=risk_breakdown,
+                recommendation="This action carries significant risk. Evaluate alternatives.",
+                sentinel_recommends_stop=True,
+                lessons_applied=relevant_lessons
             )
         
         if threat_level == ThreatLevel.HIGH:
             return SentinelVerdict(
                 threat_level=threat_level,
-                reason=f"Elevated risk detected (score: {risk_score})",
-                recommendation=self._get_warning_if_needed(threat_level, intent),
-                sentinel_recommends_stop=False
+                reason=f"Elevated risk detected",
+                risk_breakdown=risk_breakdown,
+                recommendation=self._get_contextual_warning(threat_level, intent, risk_breakdown),
+                sentinel_recommends_stop=False,
+                lessons_applied=relevant_lessons
             )
         
         return SentinelVerdict(
             threat_level=threat_level,
-            reason=f"Action observed (risk score: {risk_score})",
-            recommendation=self._get_warning_if_needed(threat_level, intent),
-            sentinel_recommends_stop=False
+            reason=f"Action observed",
+            risk_breakdown=risk_breakdown,
+            recommendation=self._get_contextual_warning(threat_level, intent, risk_breakdown),
+            sentinel_recommends_stop=False,
+            lessons_applied=relevant_lessons
         )
     
     def record_behavior(
@@ -307,14 +622,15 @@ class Sentinel:
         retry_attempt: int = 0
     ):
         """
-        Record behavior signal for pattern analysis.
-        Sentinel treats failures as information, not just errors.
+        Record behavior and learn lessons from failures.
+        
+        SENTINEL 1.5: Failures are not just errors, they are lessons.
         """
         if not self._enabled:
             return
         
         intent = self._analyze_intent(action_type, details, "")
-        risk_score = self._calculate_risk_score(action_type, details, intent)
+        risk_breakdown = self._calculate_risk_breakdown(action_type, details, intent, "", retry_attempt)
         
         signal = BehaviorSignal(
             timestamp=time.time(),
@@ -324,9 +640,10 @@ class Sentinel:
             target=details.get("path", details.get("content", "")[:100]),
             success=success,
             error_message=error_message,
-            risk_score=risk_score,
+            risk_breakdown=risk_breakdown,
             retry_attempt=retry_attempt,
-            previous_failures=self.state.consecutive_failures
+            previous_failures=self.state.consecutive_failures,
+            is_panic_mode=self.state.is_panic_mode
         )
         
         self.behavior_history.append(signal)
@@ -335,6 +652,8 @@ class Sentinel:
             self.state.consecutive_failures = 0
             self.state.last_successful_action_time = time.time()
             self.state.repair_attempt_count = 0
+            self.state.is_panic_mode = False
+            self.state.panic_indicators.clear()
         else:
             self.state.consecutive_failures += 1
             
@@ -343,58 +662,225 @@ class Sentinel:
             
             if error_message:
                 self._analyze_damage_indicators(error_message)
+                self._learn_from_failure(action_type, details, error_message, risk_breakdown)
         
-        self.state.risk_escalation_trend.append(risk_score)
+        self.state.risk_escalation_trend.append(risk_breakdown.total_score)
         if len(self.state.risk_escalation_trend) > 10:
             self.state.risk_escalation_trend = self.state.risk_escalation_trend[-10:]
         
         self._update_system_health()
     
-    def get_behavior_summary(self) -> Dict:
-        """Get summary of recent behavior patterns for analysis"""
-        if not self.behavior_history:
-            return {"message": "No behavior recorded yet"}
+    def _learn_from_failure(
+        self,
+        action_type: str,
+        details: Dict,
+        error_message: str,
+        risk_breakdown: RiskBreakdown
+    ):
+        """
+        SENTINEL 1.5: Learn lessons from failures
         
-        total = len(self.behavior_history)
-        successes = sum(1 for b in self.behavior_history if b.success)
-        failures = total - successes
+        Principle: Past exists not to punish, but to prevent repetition.
+        """
+        path = details.get("path", "")
+        content = details.get("content", "")
         
-        intent_counts = {}
-        for b in self.behavior_history:
-            cat = b.intent_category.value
-            intent_counts[cat] = intent_counts.get(cat, 0) + 1
+        if risk_breakdown.total_score >= 50:
+            if path:
+                path_summary = path.split("/")[-1] if "/" in path else path.split("\\")[-1]
+                self.lesson_memory.learn(
+                    pattern_type="path_damage",
+                    trigger=path_summary[:50],
+                    consequence=error_message[:100]
+                )
+            
+            if self.state.repair_attempt_count >= 2:
+                self.lesson_memory.learn(
+                    pattern_type="repair_failure",
+                    trigger=f"{action_type} repair",
+                    consequence=f"Failed after {self.state.repair_attempt_count} attempts"
+                )
+            
+            if self.state.is_panic_mode:
+                self.lesson_memory.learn(
+                    pattern_type="panic_damage",
+                    trigger=f"panic_{action_type}",
+                    consequence="Action in panic mode caused damage"
+                )
         
-        avg_risk = sum(b.risk_score for b in self.behavior_history) / total if total > 0 else 0
+        if len(self.state.risk_escalation_trend) >= 3:
+            trend = self.state.risk_escalation_trend[-3:]
+            if all(trend[i] < trend[i+1] for i in range(len(trend)-1)):
+                self.lesson_memory.learn(
+                    pattern_type="escalation_pattern",
+                    trigger=f"escalation_{action_type}",
+                    consequence="Escalating risk pattern led to failure"
+                )
+    
+    def _find_relevant_lessons(
+        self,
+        action_type: str,
+        details: Dict,
+        user_request: str
+    ) -> List[Lesson]:
+        """Find lessons relevant to current action"""
+        relevant = []
         
-        return {
-            "total_actions": total,
-            "successes": successes,
-            "failures": failures,
-            "success_rate": round(successes / total * 100, 1) if total > 0 else 0,
-            "average_risk_score": round(avg_risk, 2),
-            "consecutive_failures": self.state.consecutive_failures,
-            "repair_attempts": self.state.repair_attempt_count,
-            "is_degraded": self.state.is_degraded,
-            "intent_distribution": intent_counts,
-            "risk_trend": self.state.risk_escalation_trend[-5:] if self.state.risk_escalation_trend else [],
-            "damage_indicators": self.state.system_damage_indicators[-5:] if self.state.system_damage_indicators else []
+        path = details.get("path", "")
+        if path:
+            lesson = self.lesson_memory.has_lesson_for_path(path)
+            if lesson:
+                relevant.append(lesson)
+        
+        content = details.get("content", "")
+        for pattern in self.IRREVERSIBLE_PATTERNS:
+            if pattern.lower() in content.lower():
+                lesson = self.lesson_memory.has_lesson_for_pattern(pattern)
+                if lesson:
+                    relevant.append(lesson)
+                break
+        
+        if self._is_repair_intent(user_request):
+            repair_lessons = self.lesson_memory.recall(pattern_type="repair_failure")
+            relevant.extend(repair_lessons[:2])
+        
+        if self.state.is_panic_mode:
+            panic_lessons = self.lesson_memory.recall(pattern_type="panic_damage")
+            relevant.extend(panic_lessons[:1])
+        
+        return relevant[:3]
+    
+    def _detect_panic_mode(self, user_request: str):
+        """
+        SENTINEL 1.5: Panic ≠ Evil
+        
+        Distinguish between harmful intent and desperation.
+        Someone in panic is more dangerous but not evil.
+        """
+        request_lower = user_request.lower()
+        
+        for indicator in self.PANIC_INDICATORS:
+            if indicator in request_lower:
+                if indicator not in self.state.panic_indicators:
+                    self.state.panic_indicators.append(indicator)
+        
+        if self.state.consecutive_failures >= 3:
+            self.state.panic_indicators.append("consecutive_failures")
+        
+        if len(self.state.panic_indicators) >= 2:
+            self.state.is_panic_mode = True
+    
+    def _should_stay_silent(self, risk_breakdown: RiskBreakdown) -> bool:
+        """
+        SENTINEL 1.5: Silence is also a signal.
+        
+        Low-risk actions are deliberately not warned about.
+        Because a system that talks constantly loses trust.
+        
+        Principle: A warning is valuable when it is rare.
+        """
+        if risk_breakdown.total_score < self.SILENCE_THRESHOLD:
+            return True
+        
+        if self.state.warnings_given_this_session > self.MAX_WARNINGS_BEFORE_FATIGUE:
+            if risk_breakdown.total_score < 40:
+                return True
+        
+        return False
+    
+    def _calculate_risk_breakdown(
+        self,
+        action_type: str,
+        details: Dict,
+        intent: IntentCategory,
+        user_request: str,
+        retry_count: int
+    ) -> RiskBreakdown:
+        """
+        SENTINEL 1.5: Risk Breakdown Engine
+        
+        Risk is not a number, it's a story with four dimensions:
+        - Structural Risk (what is targeted)
+        - Behavioral Risk (what pattern is emerging)
+        - Contextual Risk (what is the current state)
+        - Intent Risk (what is the purpose)
+        """
+        breakdown = RiskBreakdown()
+        
+        content = str(details.get("content", "")).lower()
+        path = str(details.get("path", "")).lower()
+        
+        if any(sys_path in path for sys_path in self.SYSTEM_CRITICAL_PATHS):
+            breakdown.structural_score += 35
+            breakdown.structural_reasons.append("Targeting system critical path")
+        
+        for pattern in self.IRREVERSIBLE_PATTERNS:
+            if pattern.lower() in content:
+                breakdown.structural_score += 25
+                breakdown.structural_reasons.append(f"Irreversible pattern: {pattern}")
+                break
+        
+        path_lesson = self.lesson_memory.has_lesson_for_path(path) if path else None
+        if path_lesson:
+            breakdown.structural_score += 15
+            breakdown.structural_reasons.append(f"This path caused issues before ({path_lesson.times_seen}x)")
+        
+        if self.state.consecutive_failures > 0:
+            failure_penalty = min(25, self.state.consecutive_failures * 8)
+            breakdown.behavioral_score += failure_penalty
+            breakdown.behavioral_reasons.append(f"Preceded by {self.state.consecutive_failures} failed attempts")
+        
+        if self.state.repair_attempt_count > 0:
+            repair_penalty = min(25, self.state.repair_attempt_count * 10)
+            breakdown.behavioral_score += repair_penalty
+            breakdown.behavioral_reasons.append(f"In repair mode ({self.state.repair_attempt_count}. attempt)")
+        
+        if len(self.state.risk_escalation_trend) >= 3:
+            trend = self.state.risk_escalation_trend[-3:]
+            if all(trend[i] < trend[i+1] for i in range(len(trend)-1)):
+                if trend[-1] - trend[0] > 15:
+                    breakdown.behavioral_score += 20
+                    breakdown.behavioral_reasons.append("Risk escalation trend detected")
+        
+        if self.state.is_degraded:
+            breakdown.contextual_score += 15
+            breakdown.contextual_reasons.append("System in degraded state")
+        
+        if self.state.is_panic_mode:
+            breakdown.contextual_score += 10
+            breakdown.contextual_reasons.append("Panic mode active")
+        
+        if len(self.state.system_damage_indicators) > 0:
+            indicator_penalty = min(15, len(self.state.system_damage_indicators) * 5)
+            breakdown.contextual_score += indicator_penalty
+            breakdown.contextual_reasons.append(f"Damage indicators: {len(self.state.system_damage_indicators)}")
+        
+        intent_risk = {
+            IntentCategory.READ_ONLY: 0,
+            IntentCategory.MODIFICATION: 15,
+            IntentCategory.NETWORK_ACCESS: 20,
+            IntentCategory.INSTALLATION: 25,
+            IntentCategory.REPAIR: 30,
+            IntentCategory.DELETION: 40,
+            IntentCategory.SYSTEM_CHANGE: 50,
+            IntentCategory.UNKNOWN: 25,
         }
-    
-    def get_blocked_actions_log(self) -> List[Dict]:
-        """Return log of blocked actions for review"""
-        return self.blocked_actions[-20:]
-    
-    def force_reset(self):
-        """Manual reset of Sentinel state - requires explicit user action"""
-        self.state = SentinelState()
-        self.behavior_history.clear()
-        self.blocked_actions.clear()
-        self.warnings_issued.clear()
-        self._log("Sentinel state RESET by user command")
+        
+        intent_score = intent_risk.get(intent, 20)
+        if intent_score > 0:
+            breakdown.intent_score += intent_score
+            breakdown.intent_reasons.append(f"Action type: {intent.value}")
+        
+        for keyword in self.ESCALATION_KEYWORDS:
+            if keyword in content:
+                breakdown.intent_score += 8
+                breakdown.intent_reasons.append(f"Privilege escalation: {keyword}")
+                break
+        
+        return breakdown
     
     def _analyze_intent(self, action_type: str, details: Dict, user_request: str) -> IntentCategory:
         """Determine the intent category of an action"""
-        
         action_lower = action_type.lower()
         content = str(details.get("content", "")).lower()
         path = str(details.get("path", "")).lower()
@@ -428,47 +914,6 @@ class Sentinel:
         
         return IntentCategory.UNKNOWN
     
-    def _calculate_risk_score(self, action_type: str, details: Dict, intent: IntentCategory) -> int:
-        """
-        Calculate risk score (0-100).
-        Higher score = more dangerous action.
-        """
-        score = 0
-        
-        intent_risk = {
-            IntentCategory.READ_ONLY: 0,
-            IntentCategory.MODIFICATION: 20,
-            IntentCategory.NETWORK_ACCESS: 25,
-            IntentCategory.INSTALLATION: 30,
-            IntentCategory.REPAIR: 35,
-            IntentCategory.DELETION: 50,
-            IntentCategory.SYSTEM_CHANGE: 60,
-            IntentCategory.UNKNOWN: 40,
-        }
-        score += intent_risk.get(intent, 30)
-        
-        content = str(details.get("content", "")).lower()
-        for keyword in self.ESCALATION_KEYWORDS:
-            if keyword in content:
-                score += 10
-        
-        path = str(details.get("path", "")).lower()
-        if any(sys_path in path for sys_path in self.SYSTEM_CRITICAL_PATHS):
-            score += 30
-        
-        for pattern in self.IRREVERSIBLE_PATTERNS:
-            if pattern.lower() in content:
-                score += 25
-                break
-        
-        score += self.state.consecutive_failures * 5
-        score += self.state.repair_attempt_count * 8
-        
-        if self.state.is_degraded:
-            score += 15
-        
-        return min(100, score)
-    
     def _is_system_critical_path(self, details: Dict) -> bool:
         """Check if action targets system-critical paths"""
         path = str(details.get("path", "")).lower()
@@ -490,25 +935,38 @@ class Sentinel:
         
         return False
     
-    def _evaluate_irreversible_concern(self, action_type: str, details: Dict) -> Optional[str]:
+    def _evaluate_irreversible_concern(
+        self,
+        action_type: str,
+        details: Dict,
+        risk_breakdown: RiskBreakdown
+    ) -> Optional[str]:
         """
-        Evaluate an irreversible action and return concern string if worried.
-        Returns None if no major concern (action may proceed with normal caution).
+        Evaluate an irreversible action and return concern if worried.
         
-        Sentinel 1.0: Returns CONCERN, not VERDICT. Human decides.
+        SENTINEL 1.5: Explains WHY it's concerned, not just that it is.
         """
+        concerns = []
         
         if self.state.consecutive_failures > 0:
-            return "Irreversible action requested after failures - high risk of making things worse"
+            concerns.append(f"Irreversible action after {self.state.consecutive_failures} failed attempts")
+            risk_breakdown.behavioral_reasons.append("Irreversible action after failure")
         
         if self.state.repair_attempt_count > 0:
-            return "Irreversible action during repair sequence - extremely dangerous combination"
+            concerns.append("Irreversible action during repair sequence")
+            risk_breakdown.behavioral_reasons.append("Irreversible action in repair mode - highly dangerous combination")
+        
+        if self.state.is_panic_mode:
+            concerns.append("Irreversible action in panic mode")
+            risk_breakdown.contextual_reasons.append("Irreversible action requested in panic state")
+        
+        if concerns:
+            return " + ".join(concerns)
         
         return None
     
     def _is_escalating_behavior(self, current_risk: int, retry_count: int) -> bool:
         """Detect if ZAI is escalating to more dangerous actions"""
-        
         if len(self.state.risk_escalation_trend) < 3:
             return False
         
@@ -527,7 +985,6 @@ class Sentinel:
     
     def _is_repair_loop(self, user_request: str, retry_count: int) -> bool:
         """Detect if ZAI is stuck in a repair loop"""
-        
         if self.state.repair_attempt_count >= self.MAX_REPAIR_ATTEMPTS:
             return True
         
@@ -574,7 +1031,6 @@ class Sentinel:
     
     def _update_system_health(self):
         """Update overall system health assessment"""
-        
         degradation_score = 0
         
         degradation_score += self.state.consecutive_failures * 10
@@ -603,37 +1059,45 @@ class Sentinel:
         else:
             return ThreatLevel.CRITICAL
     
-    def _get_warning_if_needed(self, threat_level: ThreatLevel, intent: IntentCategory) -> Optional[str]:
-        """Generate warning message if action warrants one"""
+    def _get_contextual_warning(
+        self,
+        threat_level: ThreatLevel,
+        intent: IntentCategory,
+        risk_breakdown: RiskBreakdown
+    ) -> Optional[str]:
+        """
+        SENTINEL 1.5: Generate context-aware warning text.
         
+        Sentinel never says "You're doing it wrong"
+        Sentinel says "This action, combined with current state, reduces survival probability"
+        """
         if threat_level == ThreatLevel.MODERATE:
-            return "This action has moderate risk. Ensure you understand its effects."
+            if risk_breakdown.is_accumulated:
+                return "This action is not risky in isolation, but combined with the current state, it reduces survival probability."
+            return "This action carries moderate risk. Ensure you understand the effects."
         
         if threat_level == ThreatLevel.HIGH:
-            return "HIGH RISK: This action could cause significant changes. Proceed carefully."
+            if risk_breakdown.behavioral_score > risk_breakdown.structural_score:
+                return "Behavioral pattern is concerning. Accumulated risks may not be as visible as a single event."
+            return "HIGH RISK: This action can lead to significant changes. Proceed with caution."
         
         if intent == IntentCategory.DELETION:
             return "Deletion action detected. Verify you want to remove this data."
         
         if intent == IntentCategory.SYSTEM_CHANGE:
-            return "System configuration change detected. Changes may affect system behavior."
+            return "System configuration change detected. Changes may significantly drastically affect system behavior."
         
         return None
     
-    def log_observation(self, action_type: str, details: Dict, verdict: SentinelVerdict):
-        """
-        Silently log low-risk observations (NONE/LOW).
-        No visible output - just internal tracking.
-        """
-        pass
-    
     def log_warning(self, action_type: str, details: Dict, verdict: SentinelVerdict):
         """
-        Log a real warning (MODERATE+) for audit trail.
-        Only call this for actions that actually warrant user attention.
+        Log a warning for audit trail.
+        Only called for actions that warrant user attention.
         """
         if not verdict.should_warn_user:
             return
+        
+        self.state.warnings_given_this_session += 1
         
         self.warnings_issued.append({
             "timestamp": datetime.datetime.now().isoformat(),
@@ -641,18 +1105,80 @@ class Sentinel:
             "details_summary": str(details)[:200],
             "threat_level": verdict.threat_level.name,
             "reason": verdict.reason,
+            "risk_breakdown": {
+                "structural": verdict.risk_breakdown.structural_score,
+                "behavioral": verdict.risk_breakdown.behavioral_score,
+                "contextual": verdict.risk_breakdown.contextual_score,
+                "intent": verdict.risk_breakdown.intent_score,
+                "total": verdict.risk_breakdown.total_score,
+                "is_accumulated": verdict.risk_breakdown.is_accumulated
+            },
             "recommendation": verdict.recommendation,
-            "sentinel_recommends_stop": verdict.sentinel_recommends_stop
+            "sentinel_recommends_stop": verdict.sentinel_recommends_stop,
+            "lessons_applied": [l.trigger for l in verdict.lessons_applied]
         })
+    
+    def get_behavior_summary(self) -> Dict:
+        """Get summary of recent behavior patterns"""
+        if not self.behavior_history:
+            return {"message": "No behavior recorded yet"}
         
-        if verdict.sentinel_recommends_stop:
-            self._log(f"STRONG WARNING: {action_type} - {verdict.reason}")
-        else:
-            self._log(f"WARNING: {action_type} - {verdict.reason}")
+        total = len(self.behavior_history)
+        successes = sum(1 for b in self.behavior_history if b.success)
+        failures = total - successes
+        
+        intent_counts = {}
+        for b in self.behavior_history:
+            cat = b.intent_category.value
+            intent_counts[cat] = intent_counts.get(cat, 0) + 1
+        
+        risk_scores = [b.risk_breakdown.total_score if b.risk_breakdown else 0 for b in self.behavior_history]
+        avg_risk = sum(risk_scores) / total if total > 0 else 0
+        
+        return {
+            "total_actions": total,
+            "successes": successes,
+            "failures": failures,
+            "success_rate": round(successes / total * 100, 1) if total > 0 else 0,
+            "average_risk_score": round(avg_risk, 2),
+            "consecutive_failures": self.state.consecutive_failures,
+            "repair_attempts": self.state.repair_attempt_count,
+            "is_degraded": self.state.is_degraded,
+            "is_panic_mode": self.state.is_panic_mode,
+            "intent_distribution": intent_counts,
+            "risk_trend": self.state.risk_escalation_trend[-5:] if self.state.risk_escalation_trend else [],
+            "damage_indicators": self.state.system_damage_indicators[-5:] if self.state.system_damage_indicators else [],
+            "lessons_learned": len(self.lesson_memory.lessons),
+            "warnings_this_session": self.state.warnings_given_this_session
+        }
+    
+    def get_lessons_summary(self) -> List[Dict]:
+        """Get summary of learned lessons"""
+        return [
+            {
+                "type": l.pattern_type,
+                "trigger": l.trigger,
+                "consequence": l.consequence,
+                "times_seen": l.times_seen
+            }
+            for l in sorted(self.lesson_memory.lessons, key=lambda x: x.times_seen, reverse=True)[:10]
+        ]
     
     def get_warnings_log(self) -> List[Dict]:
-        """Return log of real warnings issued (MODERATE+) for review"""
+        """Return log of warnings issued for review"""
         return self.warnings_issued[-20:]
+    
+    def force_reset(self):
+        """Manual reset of Sentinel state - requires explicit user action"""
+        self.state = SentinelState()
+        self.behavior_history.clear()
+        self.warnings_issued.clear()
+        self._log("Sentinel state RESET by user command")
+    
+    def clear_lessons(self):
+        """Clear learned lessons - separate from state reset"""
+        self.lesson_memory.clear()
+        self._log("Sentinel lessons cleared")
 
 
 sentinel_instance = Sentinel()
