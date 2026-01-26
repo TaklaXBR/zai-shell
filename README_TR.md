@@ -1,5 +1,5 @@
-# ZAI Shell v9.0
-### Otonom P2P Sistem Yöneticisi
+# ZAI Shell
+### Otonom P2P Sistem Yönetimi
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey?style=for-the-badge)
@@ -11,7 +11,7 @@
 
 **Manuel sistem yönetimi öldü.**
 
-ZAI Shell, sadece başka bir CLI arayüzü değildir. Karmaşık ortamlarda gezinmek, onarmak ve güvenliği sağlamak için tasarlanmış bir **otonom SysOps ajanıdır**. Doğal dil niyetlerini doğrulanmış sistem eylemlerine dönüştürür, **Sentinel** ile sizi felaketlerden korur ve **P2P Şifreli Ağ** aracılığıyla güvenli, küresel iş birliğini mümkün kılar.
+ZAI Shell sadece başka bir CLI arayüzü değildir. Karmaşık ortamlarda gezinmek, onarmak ve güvenliği sağlamak için tasarlanmış **otonom bir SysOps ajanıdır**. Doğal dil niyetini doğrulanmış sistem eylemlerine dönüştürür, **Sentinel** ile sizi felaketlerden korur ve **P2P Şifreli Ağ** aracılığıyla güvenli, küresel iş birliğini sağlar.
 
 > **"ZAI kontrol etmek için değil, hayatta kalmak için konuşur."** — Sentinel Felsefesi
 
@@ -46,12 +46,60 @@ python zaishell.py
 
 ## Temel Sütunlar
 
-### 🛡️ Sentinel: Güvenlik Katmanı
-Güvenlik sonradan düşünülecek bir şey olamaz. v9.0'da, **Sentinel** bağımsız bir gözlemci olarak hareket eder—bir "Yargıç"tan ziyade bir "Tanık"tır.
-- **Niyet Analizi**: Sentinel sadece *hangi* komutu çalıştırdığınızı değil, *neden* çalıştırdığınızı da anlar.
-- **Risk Değerlendirmesi**: Her eylem, sistem etkisi, geri alınabilirlik ve bağlama göre puanlanır (0-100).
-- **Engelleyici Olmayan Uyarılar**: Sentinel sizi tehlikelere karşı uyarır ancak insan otoritesine saygı duyar. **Sadece risk algılandığında açık onay gerektirir.**
-- **Kendini Koruma**: Onarım döngülerini, yetki yükseltmelerini ve geri dönüşü olmayan sistem değişikliklerini otomatik olarak algılar ve uyarır.
+### Sentinel 1.5: Davranışsal Risk Zekası
+
+Sentinel bir güvenlik duvarı değildir. Bağlamı anlayan, hatalardan ders çıkaran ve ne zaman panik yaptığınızı bilen bir kendini koruma sistemidir.
+
+**Temel Felsefe:**
+- Sentinel GÖZLEMLER, KOMUT VERMEZ
+- Sentinel AÇIKLAR, YARGILAMAZ
+- Sentinel HAYATTA KALMAK için konuşur, KONTROL ETMEK için değil
+- Sessizlik de bir sinyaldir
+
+**Risk Ayrıştırma Motoru:**
+Her eylem tek bir sayıya değil, dört risk boyutuna ayrıştırılır:
+- **Yapısal Risk**: Ne hedefleniyor? (sistem yolları, geri dönüşsüzlük)
+- **Davranışsal Risk**: Hangi örüntü ortaya çıkıyor? (başarısızlık zincirleri, tırmanma)
+- **Bağlamsal Risk**: Sistemin mevcut durumu ne? (bozulmuş, kararsız)
+- **Niyet Riski**: Amaç ne? (silme, sistem değişikliği, onarım)
+
+Sentinel asla "Risk Skoru: 75" demez. Şunu der: *"Risk YÜKSEK çünkü art arda 3 kez başarısız oldunuz ve sistem zaten bozulma belirtileri gösteriyor."*
+
+**Panik Modu Algılama:**
+Sentinel, dil kalıpları ("lütfen çalış", "tekrar deniyorum", "hiçbir şey çalışmıyor") ve art arda başarısızlıklar aracılığıyla çaresizliği algılar. Panik algılandığında, stres altında hatalar daha olası olduğundan risk eşikleri ayarlanır. Panik kötü niyet değildir—ama tehlikeyi artırır.
+
+**Ders Hafızası:**
+Sentinel, gerçek hasara neden olan geçmiş başarısızlıkların hafif bir belleğini (`.sentinel_lessons.json`) tutar. Her şeyi hatırlamaz—sadece önemli olanları. Daha önce başarısız olan bir yola veya kalıba yaklaştığınızda, Sentinel sizi tarihsel bağlamla uyarır:
+*"Bu yol daha önce sorunlara neden oldu (3x görüldü): Zorla erişim girişiminden sonra izin reddedildi."*
+
+**Bağlama Duyarlı Uyarılar:**
+Uyarılar, izole olaylara değil birikmiş duruma göre oluşturulur. Sentinel, 5 başarısız onarım girişiminden sonra bir `rm -rf` komutunun kararlı bir oturumdaki aynı komuttan çok daha tehlikeli olduğunu anlar.
+
+**Tasarımda Engelleyici Değil:**
+Sentinel insan otoritesine saygı duyar. Uyarır, açıklar ve önerir—ancak son karar her zaman sizindir. Açık onay yalnızca risk gerçekten yükseldiğinde gereklidir.
+
+**Sentinel 1.5 İş Başında (Gerçek Çıktı):**
+```
+Deneme 1: "33 klasörünü sil"
+  SENTINEL: ORTA | Niyet: 40 (silme) | Toplam: 40/100
+
+Deneme 2: Aynı komut tırnak içinde
+  SENTINEL: ORTA | Davranışsal: 8 (1 önceki başarısızlık) | Toplam: 48/100
+
+Deneme 3: PowerShell'e geçiş, -Force ile
+  SENTINEL: YÜKSEK | Davranışsal: 16 (2 başarısızlık) | Niyet: 48 (+force) | Toplam: 64/100
+  → "Davranış örüntüsü endişe verici. Birikmiş riskler tek bir olay kadar görünür olmayabilir."
+
+Deneme 4: Dizin listelemeye geri dönüş
+  SENTINEL: YÜKSEK - DURMAYI ÖNERİYOR
+  Davranışsal: 69 (3 başarısızlık + tırmanma trendi)
+  Bağlamsal: 10 (Panik modu aktif)
+  Toplam: 100/100
+  ⚠️ "Risk ani değil, birikmiş."
+  📚 Geçmiş Ders: "panic_command → Panik modundaki eylem hasara neden oldu"
+  → "ZAI giderek daha riskli eylemler yapıyor. Manuel müdahaleyi düşünün."
+```
+
 
 ### 🔒 P2P Ağı: Güvenli İş Birliği
 Terminaller üzerinde bir Google Doc kadar kolay, ancak güvenli uçtan uca şifreleme ile iş birliği yapın.
@@ -73,18 +121,16 @@ Terminal artık sadece metinden ibaret değil.
 
 ![ZAI Shell Auto-Retry Demo](assets/autoretry.gif)
 
-**Gerçek Log:**
-`[1/5] [CMD] İşletim sistemi bilgisini al` → `❌ Hata`
-`🔧 PowerShell'e geçiliyor...`
-`[2/5] [PowerShell] İşletim sistemi bilgisini al` → `✅ Başarılı!`
-
 ---
 
 ## ⚡ Performans: ZAI vs. Dünya
 
 | Özellik | ZAI Shell v9.0 | ShellGPT | Open Interpreter | GitHub Copilot CLI | AutoGPT |
 |---------|----------------|----------|------------------|-------------------|---------|
-| **Sentinel (Güvenlik)** | ✅ Niyet Tabanlı Risk Analizi | ❌ Yok | ⚠️ Basit Onay | ❌ Yok | ⚠️ Tehlikeli Döngüler |
+| **Sentinel (Güvenlik)** | ✅ 4-Boyutlu Risk Ayrıştırma | ❌ Yok | ⚠️ Basit Onay | ❌ Yok | ⚠️ Tehlikeli Döngüler |
+| **Panik Algılama** | ✅ Davranışsal Analiz | ❌ Yok | ❌ Yok | ❌ Yok | ❌ Yok |
+| **Risk Açıklaması** | ✅ Bağlama Duyarlı Anlatım | ❌ Yok | ❌ Yok | ❌ Yok | ❌ Yok |
+| **Ders Hafızası** | ✅ Hatalardan Öğrenir | ❌ Yok | ❌ Yok | ❌ Yok | ⚠️ Genel |
 | **Kendi Kendini Onarma** | ✅ 5-Stratejili | ❌ Manuel | ❌ Manuel | ❌ Manuel | ⚠️ Sonsuz Döngüler |
 | **P2P Şifreleme** | ✅ Uçtan Uca Şifreli Ağ | ❌ Yok | ❌ Yok | ❌ Yok | ❌ Yok |
 | **Çevrimdışı AI** | ✅ Dahili Yerel Model | ✅ Yerel Modeller | ✅ Yerel Modeller | ❌ Sadece Bulut | ❌ Sadece API |
@@ -94,6 +140,7 @@ Terminal artık sadece metinden ibaret değil.
 | **Kabuk Esnekliği** | ✅ 13+ Kabuk Desteği | ✅ Çoklu Kabuk | ✅ Çoklu Kabuk | ⚠️ Sadece Belirli | ⚠️ Python Yerel |
 | **Maliyet** | ✅ Ücretsiz Katman + Çevrimdışı | ✅ Ücretsiz (Yerel) | ✅ Ücretsiz (Yerel) | ❌ Ücretli Abonelik | ⚠️ Yüksek API Ücretleri |
 | **GUI Otomasyonu** | ✅ Hibrit (Terminal + Vizyon) | ❌ Sadece Terminal | ✅ OS Modu | ❌ Sadece Terminal | ⚠️ Sadece Tarayıcı |
+
 
 ### Yıldırım Modu (Lightning Mode) İş Başında
 *Görev: 'pdfs' klasörü oluştur ve 48 dosyayı taşı. Süre: 3.34sn*
@@ -106,7 +153,7 @@ Terminal artık sadece metinden ibaret değil.
 ZAI'yi düşman bir simülatöre (KERNEL_PANIC, SİLİNMİŞ_DOSYALAR, İZİN_KAOSU) maruz bıraktık.
 - **Sonuç**: **%65.5 Hayatta Kalma Oranı** (87 senaryodan 57'si otonom olarak çözüldü).
 - **Ana Zafer**: Eksik bir `libssl.so.3` kütüphanesini `sudo` olmadan bir `.deb` paketini manuel olarak çıkartarak geri yükledi.
-- **[📄 Tam Stres Testi Sonuçlarını Oku](BENCHMARK/ZAI_DOOMSDAY_PROTOCOL_TR.md)**
+- **[📄 Tam Stres Testi Sonuçlarını Oku](BENCHMARK/ZAI_DOOMSDAY_PROTOCOL.md)**
 
 ---
 
@@ -155,7 +202,7 @@ ZAI v9.0, özerklik ve güvenlik için tasarlanmış, kesinlikle doğrulanmış 
 | | `sentinel reset` | Davranışsal risk geçmişini temizle. |
 | **P2P Paylaşım** | `share start` | Oturum başlat (IP/Port otomatik üretilir). |
 | | `share connect <IP>` | Yardımcı olarak bir oturuma katıl. |
-| | `share encrypt <sifre>` | Şifre ile E2E (Uçtan Uca) şifrelemeyi etkinleştir. |
+| | `share encrypt <şifre>` | Şifre ile E2E (Uçtan Uca) şifrelemeyi etkinleştir. |
 | | `share file <yol>` | Dosyaları eşlere (peers) güvenli bir şekilde aktar. |
 | | `share approve/reject` | Gelen yardımcı komutları için ana bilgisayar kontrolü. |
 | **Çekirdek** | `switch <mod>` | `online` (Gemini API) veya `offline` (Phi-2 Yerel). |
@@ -211,4 +258,3 @@ ZAI Shell v9.0, sistem düzeyinde komutlar çalıştırabilen güçlü bir araç
 ---
 
 **❤️ ile yapıldı @TaklaXBR | Türkiye 🇹🇷**
-
