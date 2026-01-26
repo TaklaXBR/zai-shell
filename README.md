@@ -1,4 +1,4 @@
-# ZAI Shell v9.0
+# ZAI Shell
 ### Autonomous P2P System Administration
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python)
@@ -46,12 +46,60 @@ python zaishell.py
 
 ## The Core Pillars
 
-### 🛡️ Sentinel: The Safety Layer
-Safety cannot be an afterthought. In v9.0, **Sentinel** acts as an independent observer—a "Witness" rather than a "Judge."
-- **Intent Analysis**: Sentinel understands *why* you are running a command, not just *what* command it is.
-- **Risk Evaluation**: Every action is scored (0-100) based on system impact, reversibility, and context.
-- **Non-Blocking Warnings**: Sentinel warns you of danger but respects human authority. **It requires explicit confirmation only when risk is detected.**
-- **Self-Preservation**: Automatically detects and warns against repair loops, escalation of privileges, and irreversible system changes.
+### Sentinel 1.5: Behavioral Risk Intelligence
+
+Sentinel is not a firewall. It is a self-preservation system that understands context, learns from mistakes, and knows when you are panicking.
+
+**Core Philosophy:**
+- Sentinel OBSERVES, it does not COMMAND
+- Sentinel EXPLAINS, it does not JUDGE
+- Sentinel speaks to SURVIVE, not to CONTROL
+- Silence is also a signal
+
+**Risk Breakdown Engine:**
+Every action is decomposed into four risk dimensions, not a single number:
+- **Structural Risk**: What is being targeted? (system paths, irreversibility)
+- **Behavioral Risk**: What pattern is emerging? (failure chains, escalation)
+- **Contextual Risk**: What is the current system state? (degraded, unstable)
+- **Intent Risk**: What is the purpose? (deletion, system change, repair)
+
+Sentinel never says "Risk Score: 75". It says: *"Risk is HIGH because you have failed 3 times consecutively, and the system is already showing degradation signs."*
+
+**Panic Mode Detection:**
+Sentinel detects desperation through language patterns ("please work", "trying again", "nothing works") and consecutive failures. When panic is detected, risk thresholds are adjusted because errors are more likely under stress. Panic does not equal malice—but it does increase danger.
+
+**Lesson Memory:**
+Sentinel maintains a lightweight memory (`.sentinel_lessons.json`) of past failures that caused actual damage. It does not remember everything—only what matters. When you approach a path or pattern that failed before, Sentinel warns you with historical context:
+*"This path caused issues before (seen 3x): Permission denied after forced access attempt."*
+
+**Context-Aware Warnings:**
+Warnings are generated based on accumulated state, not isolated events. Sentinel understands that a `rm -rf` after 5 failed repair attempts is far more dangerous than the same command in a stable session.
+
+**Non-Blocking by Design:**
+Sentinel respects human authority. It warns, explains, and recommends—but the final decision is always yours. Explicit confirmation is required only when risk is genuinely elevated.
+
+**Sentinel 1.5 in Action (Real Output):**
+```
+Attempt 1: "Delete folder 33"
+  SENTINEL: MODERATE | Intent: 40 (deletion) | Total: 40/100
+
+Attempt 2: Same command with quotes
+  SENTINEL: MODERATE | Behavioral: 8 (1 prior failure) | Total: 48/100
+
+Attempt 3: Switched to PowerShell with -Force
+  SENTINEL: HIGH | Behavioral: 16 (2 failures) | Intent: 48 (+force) | Total: 64/100
+  → "Behavioral pattern is concerning. Accumulated risks may not be as visible."
+
+Attempt 4: Fallback to directory listing
+  SENTINEL: HIGH - RECOMMENDS STOPPING
+  Behavioral: 69 (3 failures + escalation trend)
+  Contextual: 10 (Panic mode active)
+  Total: 100/100
+  ⚠️ "Risk is accumulated, not sudden."
+  📚 Past Lesson: "panic_command → Action in panic mode caused damage"
+  → "ZAI is taking increasingly risky actions. Consider manual intervention."
+```
+
 
 ### 🔒 P2P Mesh: Secure Collaboration
 Collaborate on terminals as easily as a Google Doc, but with secure end-to-end encryption.
@@ -79,7 +127,10 @@ The terminal is no longer text-only.
 
 | Feature | ZAI Shell v9.0 | ShellGPT | Open Interpreter | GitHub Copilot CLI | AutoGPT |
 |---------|----------------|----------|------------------|-------------------|---------|
-| **Sentinel (Safety)** | ✅ Intent-Based Risk Analysis | ❌ None | ⚠️ Basic Confirm | ❌ None | ⚠️ Dangerous Loops |
+| **Sentinel (Safety)** | ✅ 4-Dimension Risk Breakdown | ❌ None | ⚠️ Basic Confirm | ❌ None | ⚠️ Dangerous Loops |
+| **Panic Detection** | ✅ Behavioral Analysis | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Risk Explanation** | ✅ Context-Aware Narratives | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Lesson Memory** | ✅ Learns From Failures | ❌ None | ❌ None | ❌ None | ⚠️ Generic |
 | **Self-Healing** | ✅ 5-Strategy Auto-Retry | ❌ Manual | ❌ Manual | ❌ Manual | ⚠️ Infinite Loops |
 | **P2P Encryption** | ✅ E2E Encrypted Mesh | ❌ None | ❌ None | ❌ None | ❌ None |
 | **Offline AI** | ✅ Built-in Local Model | ✅ Local Models | ✅ Local Models | ❌ Cloud Only | ❌ API Only |
@@ -89,6 +140,7 @@ The terminal is no longer text-only.
 | **Shell Flexibility** | ✅ 13+ Shells Supported | ✅ Multi-Shell | ✅ Multi-Shell | ⚠️ Specific Only | ⚠️ Python Native |
 | **Cost** | ✅ Free Tier + Offline | ✅ Free (Local) | ✅ Free (Local) | ❌ Paid Subscription | ⚠️ High API Costs |
 | **GUI Automation** | ✅ Hybrid (Terminal + Vision) | ❌ Terminal Only | ✅ OS Mode | ❌ Terminal Only | ⚠️ Browser Only |
+
 
 ### Lightning Mode in Action
 *Task: Create 'pdfs' folder and move 48 files. Time: 3.34s*
@@ -206,3 +258,4 @@ ZAI Shell v9.0 is a powerful tool capable of executing system-level commands. Wh
 ---
 
 **Made with ❤️ by @TaklaXBR | Turkey 🇹🇷**
+
