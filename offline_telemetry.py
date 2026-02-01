@@ -253,7 +253,7 @@ class TelemetryManager:
             event_props = self._get_platform_info()
             if properties:
                 event_props.update(properties)
-            self._posthog.capture(self._user_id, event_name, event_props)
+            self._posthog.capture(event_name, distinct_id=self._user_id, properties=event_props)
             self._posthog.flush()
         except:
             pass
