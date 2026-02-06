@@ -54,6 +54,13 @@ class P2PTerminalSharing:
         self.encryption_key_display = None
         self.fernet = None
         self.no_ai_mode = False
+        
+        self.auth_code = None
+        self.auth_enabled = True
+        self.failed_auth_attempts = {}
+        self.max_failed_attempts = 3
+        self.banned_ips = set()
+        
         self._load_encryption_state()
     
     def _load_encryption_state(self):
@@ -331,32 +338,47 @@ class P2PTerminalSharing:
             self.terminal_logs = []
             self.chat_messages = []
             
+            import random
+            self.auth_code = str(random.randint(1000, 9999))
+            self.failed_auth_attempts = {}
+            self.banned_ips = set()
+            
             ai_mode_str = f"{Fore.RED}NO-AI (Direct Execute){Style.RESET_ALL}" if self.no_ai_mode else f"{Fore.GREEN}AI-Assisted{Style.RESET_ALL}"
             encrypt_str = f"{Fore.GREEN}ON{Style.RESET_ALL}" if self.encryption_enabled else f"{Fore.YELLOW}OFF{Style.RESET_ALL}"
+            auth_str = f"{Fore.GREEN}ON{Style.RESET_ALL}" if self.auth_enabled else f"{Fore.YELLOW}OFF{Style.RESET_ALL}"
             
             print(f"\n{Fore.GREEN}{'='*55}{Style.RESET_ALL}")
             print(f"{Fore.GREEN}   TERMINAL SHARING STARTED - MULTI-CLIENT P2P{Style.RESET_ALL}")
             print(f"{Fore.GREEN}{'='*55}{Style.RESET_ALL}")
             print(f"\n{Fore.YELLOW}Your Name: {self.host_name}{Style.RESET_ALL}")
             print(f"{Fore.CYAN}Local Address: {Fore.YELLOW}{self.share_code}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}Mode: {ai_mode_str} | Encryption: {encrypt_str}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Mode: {ai_mode_str} | Encryption: {encrypt_str} | Auth: {auth_str}{Style.RESET_ALL}")
+            
+            if self.auth_enabled:
+                print(f"\n{Fore.RED}{'='*55}{Style.RESET_ALL}")
+                print(f"{Fore.RED}🔐 AUTHENTICATION CODE: {Fore.YELLOW}{self.auth_code}{Style.RESET_ALL}")
+                print(f"{Fore.RED}{'='*55}{Style.RESET_ALL}")
+                print(f"{Fore.WHITE}Share this code ONLY with people you trust!{Style.RESET_ALL}")
+                print(f"{Fore.WHITE}Clients must provide this code to connect.{Style.RESET_ALL}")
+            
             if self.no_ai_mode:
-                print(f"{Fore.YELLOW}⚠ NO-AI MODE: Commands will execute directly without AI processing{Style.RESET_ALL}")
+                print(f"\n{Fore.YELLOW}⚠ NO-AI MODE: Commands will execute directly without AI processing{Style.RESET_ALL}")
             print(f"\n{Fore.MAGENTA}FOR GLOBAL ACCESS:{Style.RESET_ALL}")
             print(f"{Fore.WHITE}  1. Run: ngrok tcp {self.host_port}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}  2. Share the ngrok URL{Style.RESET_ALL}")
+            print(f"{Fore.WHITE}  2. Share the ngrok URL AND the auth code{Style.RESET_ALL}")
             print(f"\n{Fore.CYAN}Commands:{Style.RESET_ALL}")
             print(f"  share message <text>       - Send message to all")
             print(f"  share file <path> [user]   - Send file (default: broadcast)")
             print(f"  share list                 - List connected clients")
             print(f"  share approve/reject       - Handle commands")
+            print(f"  share auth                 - Show/regenerate auth code")
             print(f"  share end                  - End session")
             print(f"\n{Fore.CYAN}Waiting for connections...{Style.RESET_ALL}\n")
             
             self.receive_thread = threading.Thread(target=self._host_accept_loop, daemon=True)
             self.receive_thread.start()
             
-            return {"success": True, "local": self.share_code, "port": self.host_port}
+            return {"success": True, "local": self.share_code, "port": self.host_port, "auth_code": self.auth_code}
             
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -383,8 +405,15 @@ class P2PTerminalSharing:
     
     def _handle_client(self, client_socket, addr, client_id):
         client_socket.settimeout(0.5)
+        client_ip = addr[0]
         
         try:
+            if client_ip in self.banned_ips:
+                print(f"\n{Fore.RED}⚠ Blocked connection from banned IP: {client_ip}{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
+                client_socket.close()
+                return
+            
             client_socket.settimeout(30)
             data = client_socket.recv(4096)
             if not data:
@@ -392,6 +421,47 @@ class P2PTerminalSharing:
                 return
             
             msg = json.loads(data.decode('utf-8').strip())
+            
+            if self.auth_enabled and self.auth_code:
+                provided_code = msg.get('auth_code', '')
+                
+                if provided_code != self.auth_code:
+                    if client_ip not in self.failed_auth_attempts:
+                        self.failed_auth_attempts[client_ip] = 0
+                    self.failed_auth_attempts[client_ip] += 1
+                    
+                    remaining = self.max_failed_attempts - self.failed_auth_attempts[client_ip]
+                    
+                    print(f"\n{Fore.RED}{'='*50}{Style.RESET_ALL}")
+                    print(f"{Fore.RED}⚠ AUTHENTICATION FAILED from {client_ip}{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}Provided code: {provided_code or '(none)'}{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}Attempts remaining: {max(0, remaining)}{Style.RESET_ALL}")
+                    print(f"{Fore.RED}{'='*50}{Style.RESET_ALL}")
+                    print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
+                    
+                    if self.failed_auth_attempts[client_ip] >= self.max_failed_attempts:
+                        self.banned_ips.add(client_ip)
+                        print(f"\n{Fore.RED}⚠ IP {client_ip} has been temporarily banned!{Style.RESET_ALL}")
+                        print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
+                        self._add_log(f"[SECURITY] IP banned after {self.max_failed_attempts} failed auth attempts: {client_ip}", "error")
+                    
+                    error_response = {
+                        'type': 'auth_failed',
+                        'message': 'Invalid authentication code',
+                        'attempts_remaining': max(0, remaining)
+                    }
+                    try:
+                        client_socket.send((json.dumps(error_response) + '\n').encode('utf-8'))
+                    except:
+                        pass
+                    
+                    client_socket.close()
+                    self._add_log(f"[AUTH FAILED] {client_ip} - wrong code: {provided_code}", "error")
+                    return
+                
+                if client_ip in self.failed_auth_attempts:
+                    del self.failed_auth_attempts[client_ip]
+            
             raw_name = msg.get('name', 'Helper')
             safe_name = ''.join(c for c in raw_name if c.isalnum() or c in ' -_')[:20] or 'Helper'
             unique_name = self._get_unique_name(safe_name)
@@ -415,7 +485,7 @@ class P2PTerminalSharing:
             self._send_to_client(client_id, response)
             
             print(f"\n{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}New connection: {unique_name} from {addr[0]}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✓ New connection: {unique_name} from {addr[0]} (authenticated){Style.RESET_ALL}")
             print(f"{Fore.CYAN}Total connected: {len(self.clients)}{Style.RESET_ALL}")
             print(f"{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
             print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
@@ -427,7 +497,7 @@ class P2PTerminalSharing:
                 'connected_users': self.get_connected_users()
             }, exclude=client_id)
             
-            self._add_log(f"[CONNECT] {unique_name} joined from {addr[0]}", "system")
+            self._add_log(f"[CONNECT] {unique_name} joined from {addr[0]} (authenticated)", "system")
             
             client_socket.settimeout(0.5)
             buffer = ""
@@ -644,7 +714,7 @@ class P2PTerminalSharing:
             if client_id != exclude:
                 self._send_to_client(client_id, msg)
     
-    def connect_to_session(self, address: str, my_name: str = None) -> Dict:
+    def connect_to_session(self, address: str, my_name: str = None, auth_code: str = None) -> Dict:
         if my_name:
             self.my_name = my_name
             self._save_name(my_name)
@@ -666,12 +736,36 @@ class P2PTerminalSharing:
             print(f"{Fore.CYAN}Connecting to {host}:{port}...{Style.RESET_ALL}")
             self.socket.connect((host, port))
             
-            hello_msg = json.dumps({'type': 'hello', 'name': self.my_name}) + '\n'
+            if auth_code is None:
+                print(f"{Fore.YELLOW}Enter authentication code (get from host): {Style.RESET_ALL}", end="")
+                try:
+                    auth_code = input().strip()
+                except:
+                    auth_code = ""
+            
+            hello_msg = json.dumps({
+                'type': 'hello', 
+                'name': self.my_name,
+                'auth_code': auth_code
+            }) + '\n'
             self.socket.send(hello_msg.encode('utf-8'))
             
             self.socket.settimeout(10)
             data = self.socket.recv(4096)
             response = json.loads(data.decode('utf-8').strip())
+            
+            if response.get('type') == 'auth_failed':
+                attempts_remaining = response.get('attempts_remaining', 0)
+                print(f"\n{Fore.RED}{'='*50}{Style.RESET_ALL}")
+                print(f"{Fore.RED}⚠ AUTHENTICATION FAILED{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Message: {response.get('message', 'Invalid code')}{Style.RESET_ALL}")
+                if attempts_remaining > 0:
+                    print(f"{Fore.YELLOW}Attempts remaining: {attempts_remaining}{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.RED}No attempts remaining - your IP may be temporarily banned{Style.RESET_ALL}")
+                print(f"{Fore.RED}{'='*50}{Style.RESET_ALL}")
+                self.socket.close()
+                return {"success": False, "error": "Authentication failed - invalid code"}
             
             if response.get('type') == 'welcome':
                 self.my_name = response.get('your_name', self.my_name)
@@ -687,7 +781,7 @@ class P2PTerminalSharing:
             self.terminal_logs = []
             
             print(f"\n{Fore.GREEN}{'='*55}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}   CONNECTED - MULTI-CLIENT P2P{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}   ✓ CONNECTED - AUTHENTICATED P2P{Style.RESET_ALL}")
             print(f"{Fore.GREEN}{'='*55}{Style.RESET_ALL}")
             print(f"\n{Fore.YELLOW}Your Name: {self.my_name}{Style.RESET_ALL}")
             print(f"{Fore.CYAN}Host: {self.host_name} @ {self.share_code}{Style.RESET_ALL}")
@@ -1036,24 +1130,82 @@ class P2PTerminalSharing:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
+    def _sanitize_filename(self, filename: str) -> str:
+        """
+        SECURITY: Sanitize filename to prevent path traversal attacks.
+        - Removes directory traversal sequences (../, ..\)
+        - Extracts only the base filename
+        - Removes dangerous characters
+        - Blocks reserved Windows device names
+        """
+        if not filename:
+            return "unnamed_file"
+        
+        safe_name = os.path.basename(filename)
+        
+        safe_name = safe_name.replace('/', '').replace('\\', '')
+        
+        dangerous_chars = '<>:"|?*\x00'
+        for char in dangerous_chars:
+            safe_name = safe_name.replace(char, '_')
+        
+        reserved_names = {'CON', 'PRN', 'AUX', 'NUL', 
+                         'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+                         'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
+        name_upper = safe_name.upper().split('.')[0]
+        if name_upper in reserved_names:
+            safe_name = f"blocked_{safe_name}"
+        
+        if len(safe_name) > 200:
+            name, ext = os.path.splitext(safe_name)
+            safe_name = name[:200-len(ext)] + ext
+        
+        if not safe_name or safe_name in ('.', '..'):
+            safe_name = "unnamed_file"
+        
+        return safe_name
+    
     def accept_file(self, save_path: str = None) -> Dict:
         if not self.pending_files:
             return {"success": False, "error": "No pending files"}
         
         file_info = self.pending_files.pop(0)
-        filename = file_info["filename"]
+        raw_filename = file_info["filename"]
         file_data = file_info["data"]
+        
+        filename = self._sanitize_filename(raw_filename)
+        
+        if filename != raw_filename:
+            print(f"{Fore.YELLOW}⚠ Security: Filename sanitized from '{raw_filename}' to '{filename}'{Style.RESET_ALL}")
+            self._add_log(f"[SECURITY] Filename sanitized: {raw_filename[:50]} -> {filename}", "system")
         
         if save_path:
             if os.path.isdir(save_path):
                 full_path = os.path.join(save_path, filename)
             else:
+                save_dir = os.path.dirname(save_path)
+                if save_dir and not os.path.exists(save_dir):
+                    return {"success": False, "error": f"Directory does not exist: {save_dir}"}
                 full_path = save_path
         else:
             downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
             if not os.path.exists(downloads_dir):
                 downloads_dir = os.getcwd()
             full_path = os.path.join(downloads_dir, filename)
+        
+        try:
+            real_path = os.path.realpath(full_path)
+            if save_path and os.path.isdir(save_path):
+                allowed_dir = os.path.realpath(save_path)
+            else:
+                allowed_dir = os.path.realpath(downloads_dir if not save_path else os.path.dirname(save_path) or os.getcwd())
+            
+            if not real_path.startswith(allowed_dir):
+                print(f"{Fore.RED}⚠ Security: Path traversal attempt blocked!{Style.RESET_ALL}")
+                self._add_log(f"[SECURITY BLOCKED] Path traversal: {real_path}", "error")
+                return {"success": False, "error": "Security: Invalid file path detected"}
+        except Exception:
+            pass
         
         counter = 1
         base_path = full_path
@@ -1100,6 +1252,82 @@ class P2PTerminalSharing:
             if client_id:
                 self._send_to_client(client_id, {"type": "rejected", "command": cmd_text})
             return None
+    
+    
+    def show_auth_code(self):
+        """Display current authentication code and security status"""
+        print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}SECURITY STATUS{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+        
+        auth_status = f"{Fore.GREEN}ON{Style.RESET_ALL}" if self.auth_enabled else f"{Fore.RED}OFF{Style.RESET_ALL}"
+        print(f"  Authentication: {auth_status}")
+        
+        if self.auth_enabled and self.auth_code:
+            print(f"  Current Code: {Fore.YELLOW}{self.auth_code}{Style.RESET_ALL}")
+        
+        if self.banned_ips:
+            print(f"  Banned IPs: {Fore.RED}{', '.join(self.banned_ips)}{Style.RESET_ALL}")
+        else:
+            print(f"  Banned IPs: {Fore.GREEN}None{Style.RESET_ALL}")
+        
+        if self.failed_auth_attempts:
+            print(f"  Failed Attempts:")
+            for ip, count in self.failed_auth_attempts.items():
+                print(f"    {ip}: {count} attempts")
+        
+        print(f"\n{Fore.WHITE}Commands:{Style.RESET_ALL}")
+        print(f"  share auth         - Show this status")
+        print(f"  share auth new     - Generate new auth code")
+        print(f"  share auth off     - Disable authentication (NOT RECOMMENDED)")
+        print(f"  share auth on      - Enable authentication")
+        print(f"  share unban [ip]   - Unban IP address or all")
+        print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
+    
+    def regenerate_auth_code(self) -> str:
+        """Generate a new authentication code"""
+        import random
+        old_code = self.auth_code
+        self.auth_code = str(random.randint(1000, 9999))
+        print(f"\n{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}🔐 NEW AUTHENTICATION CODE GENERATED{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
+        print(f"  Old Code: {Fore.YELLOW}{old_code}{Style.RESET_ALL}")
+        print(f"  New Code: {Fore.CYAN}{self.auth_code}{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Share this new code with trusted users only!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}{'='*50}{Style.RESET_ALL}")
+        self._add_log(f"[SECURITY] Auth code regenerated", "system")
+        return self.auth_code
+    
+    def set_auth_enabled(self, enabled: bool):
+        """Enable or disable authentication"""
+        self.auth_enabled = enabled
+        if enabled:
+            if not self.auth_code:
+                self.regenerate_auth_code()
+            print(f"{Fore.GREEN}✓ Authentication ENABLED{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Code: {self.auth_code}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.RED}⚠ Authentication DISABLED - This is NOT recommended!{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Anyone can connect without a code.{Style.RESET_ALL}")
+        self._add_log(f"[SECURITY] Authentication {'enabled' if enabled else 'disabled'}", "system")
+    
+    def unban_ip(self, ip: str = None):
+        """Unban an IP address or all IPs"""
+        if ip is None or ip.lower() == 'all':
+            count = len(self.banned_ips)
+            self.banned_ips.clear()
+            self.failed_auth_attempts.clear()
+            print(f"{Fore.GREEN}✓ All {count} IP(s) unbanned{Style.RESET_ALL}")
+            self._add_log(f"[SECURITY] All IPs unbanned", "system")
+        elif ip in self.banned_ips:
+            self.banned_ips.remove(ip)
+            if ip in self.failed_auth_attempts:
+                del self.failed_auth_attempts[ip]
+            print(f"{Fore.GREEN}✓ IP {ip} unbanned{Style.RESET_ALL}")
+            self._add_log(f"[SECURITY] IP unbanned: {ip}", "system")
+        else:
+            print(f"{Fore.YELLOW}IP {ip} was not banned{Style.RESET_ALL}")
     
     def list_clients(self):
         with self.client_lock:

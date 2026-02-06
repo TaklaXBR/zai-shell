@@ -1757,7 +1757,7 @@ class ZAIShell:
         lessons_count = len(self.brain.sentinel.lesson_memory.lessons)
         print(f"""
 {Fore.CYAN}========================================================
-          ZAI v9.0.2 - Advanced AI Shell + SENTINEL 1.5
+          ZAI v9.0.3 - Advanced AI Shell + SENTINEL 1.5
    Terminal | GUI | Research | P2P | E2E | Self-Preserve
 ========================================================{Style.RESET_ALL}
 
@@ -1822,9 +1822,27 @@ class ZAIShell:
                 return True
             elif subcommand == 'connect' and len(parts) >= 3:
                 connection_string = parts[2]
-                result = self.brain.p2p_sharing.connect_to_session(connection_string)
-                if not result.get('success'):
-                    print(f"{Fore.RED}Connection failed: {result.get('error')}{Style.RESET_ALL}")
+                auth_code = parts[3] if len(parts) >= 4 else None
+                
+                while True:
+                    result = self.brain.p2p_sharing.connect_to_session(connection_string, auth_code=auth_code)
+                    if result.get('success'):
+                        break
+                    
+                    error = result.get('error', '')
+                    print(f"{Fore.RED}Connection failed: {error}{Style.RESET_ALL}")
+                    
+                    if 'Authentication failed' in error or 'invalid code' in error.lower():
+                        print(f"{Fore.YELLOW}Retry with correct code? (Y/N): {Style.RESET_ALL}", end="")
+                        try:
+                            retry = input().strip().lower()
+                            if retry in ['y', 'yes', 'e', 'evet']:
+                                print(f"{Fore.YELLOW}Enter authentication code: {Style.RESET_ALL}", end="")
+                                auth_code = input().strip()
+                                continue
+                        except:
+                            pass
+                    break
                 return True
             elif subcommand == 'message' and len(parts) >= 3:
                 if not self.brain.p2p_sharing.is_connected:
@@ -1873,6 +1891,30 @@ class ZAIShell:
                     print(f"{Fore.YELLOW}Not connected to any session{Style.RESET_ALL}")
                     return True
                 self.brain.p2p_sharing.deny_file()
+                return True
+            elif subcommand == 'auth':
+                if not self.brain.p2p_sharing.is_host:
+                    print(f"{Fore.YELLOW}Only host can manage authentication{Style.RESET_ALL}")
+                    return True
+                if len(parts) >= 3:
+                    auth_action = parts[2].lower()
+                    if auth_action == 'new':
+                        self.brain.p2p_sharing.regenerate_auth_code()
+                    elif auth_action == 'off':
+                        self.brain.p2p_sharing.set_auth_enabled(False)
+                    elif auth_action == 'on':
+                        self.brain.p2p_sharing.set_auth_enabled(True)
+                    else:
+                        self.brain.p2p_sharing.show_auth_code()
+                else:
+                    self.brain.p2p_sharing.show_auth_code()
+                return True
+            elif subcommand == 'unban':
+                if not self.brain.p2p_sharing.is_host:
+                    print(f"{Fore.YELLOW}Only host can manage bans{Style.RESET_ALL}")
+                    return True
+                ip_to_unban = parts[2] if len(parts) >= 3 else 'all'
+                self.brain.p2p_sharing.unban_ip(ip_to_unban)
                 return True
             elif subcommand == 'end':
                 self.brain.p2p_sharing.end_session()
@@ -1937,6 +1979,83 @@ class ZAIShell:
                             else:
                                 actual_cmd = cmd
                                 shell_type = 'cmd'
+                            
+                            
+                            CRITICAL_PATTERNS = [
+                                'rm -rf', 'rm -r', 'rm -f', 'sudo rm', 'del /f', 'del /s', 'del /q',
+                                'rmdir /s', 'rd /s', 'Remove-Item', 'deltree', 'erase',
+                                'find / -delete', 'find . -delete', 'xargs rm',
+                                'format', 'mkfs', 'fdisk', 'wipefs', 'dd if=',
+                                'chmod -R 777', 'chmod 777', 'chown -R',
+                                '> /dev/sda', '> /dev/', 'mv /*',
+                                'reboot', 'shutdown', 'poweroff', 'halt', 'init 0', 'init 6',
+                                'curl | bash', 'curl |bash', 'wget | sh', 'wget |sh',
+                                'curl | sh', 'wget | bash', 'Invoke-WebRequest',
+                                'DownloadString', 'DownloadFile', 'IEX', 'Invoke-Expression',
+                                'certutil -decode', 'bitsadmin',
+                                'reg add', 'reg delete', 'sc delete', 'sc stop',
+                                'net user', 'net localgroup', 'netsh',
+                                'taskkill /f', 'wmic process', 'Stop-Process', 'kill -9',
+                                ':(){:|:&};:', ':(){ :|:', 
+                                '-encodedcommand', '-enc ', 'powershell -e ',
+                                'Start-Process', 'New-Object Net.WebClient',
+                                'Invoke-Command', 'Enter-PSSession',
+                                'sudo ', 'runas ', 'gsudo ',
+                            ]
+                            
+                            cmd_lower = actual_cmd.lower()
+                            is_critical = False
+                            matched_pattern = None
+                            
+                            for pattern in CRITICAL_PATTERNS:
+                                if pattern.lower() in cmd_lower:
+                                    is_critical = True
+                                    matched_pattern = pattern
+                                    break
+                            
+                            import re
+                            CRITICAL_REGEX = [
+                                r'rm\s+-[rf]',
+                                r'del\s+/[fqs]',
+                                r'curl.*\|\s*bash',
+                                r'wget.*\|\s*sh',
+                                r'powershell.*-e\s+',
+                                r'>\s*/dev/',
+                                r'\|\s*rm',
+                                r'\|\s*del',
+                            ]
+                            
+                            for pattern in CRITICAL_REGEX:
+                                if re.search(pattern, cmd_lower):
+                                    is_critical = True
+                                    matched_pattern = pattern
+                                    break
+                            
+                            if is_critical:
+                                print(f"\n{Fore.RED}{'='*60}{Style.RESET_ALL}")
+                                print(f"{Fore.RED}⚠️  SECURITY WARNING: CRITICAL COMMAND DETECTED{Style.RESET_ALL}")
+                                print(f"{Fore.RED}{'='*60}{Style.RESET_ALL}")
+                                print(f"{Fore.YELLOW}Command: {actual_cmd}{Style.RESET_ALL}")
+                                print(f"{Fore.YELLOW}Pattern: {matched_pattern}{Style.RESET_ALL}")
+                                print(f"{Fore.RED}This command is potentially DANGEROUS and could:{Style.RESET_ALL}")
+                                print(f"{Fore.RED}  - Delete important files{Style.RESET_ALL}")
+                                print(f"{Fore.RED}  - Modify system settings{Style.RESET_ALL}")
+                                print(f"{Fore.RED}  - Download and execute malicious code{Style.RESET_ALL}")
+                                print(f"{Fore.RED}  - Compromise your system security{Style.RESET_ALL}")
+                                print(f"{Fore.RED}{'='*60}{Style.RESET_ALL}")
+                                print(f"{Fore.YELLOW}Type 'CONFIRM' (all caps) to execute, or anything else to cancel:{Style.RESET_ALL} ", end="")
+                                
+                                try:
+                                    confirmation = input().strip()
+                                    if confirmation != 'CONFIRM':
+                                        print(f"{Fore.GREEN}✓ Command cancelled for safety{Style.RESET_ALL}")
+                                        self.brain.p2p_sharing.broadcast_output("Command cancelled by host (security)")
+                                        return True
+                                    print(f"{Fore.YELLOW}⚠️ Executing critical command...{Style.RESET_ALL}")
+                                except:
+                                    print(f"{Fore.GREEN}✓ Command cancelled{Style.RESET_ALL}")
+                                    return True
+                            
                             result = self.brain.tools.run_command({'content': actual_cmd, 'shell': shell_type, 'encoding': 'utf-8'})
                             if result.get('success'):
                                 output = result.get('output', '')
@@ -1971,20 +2090,27 @@ class ZAIShell:
         """Show share command help"""
         current_name = self.brain.p2p_sharing.my_name or "Not set"
         encryption = "ON" if self.brain.p2p_sharing.encryption_enabled else "OFF"
+        auth = "ON" if self.brain.p2p_sharing.auth_enabled else "OFF"
         key_info = ""
         if self.brain.p2p_sharing.encryption_enabled and self.brain.p2p_sharing.encryption_key_display:
             key_info = f" ({self.brain.p2p_sharing.encryption_key_display})"
         print(f"""
 {Fore.CYAN}{'='*55}{Style.RESET_ALL}
-{Fore.CYAN}TERMINAL SHARING (MULTI-CLIENT P2P + E2E ENCRYPTION){Style.RESET_ALL}
+{Fore.CYAN}TERMINAL SHARING (SECURE P2P + E2E ENCRYPTION){Style.RESET_ALL}
 {Fore.CYAN}{'='*55}{Style.RESET_ALL}
-{Fore.YELLOW}Your Name: {current_name} | Encryption: {encryption}{key_info}{Style.RESET_ALL}
+{Fore.YELLOW}Your Name: {current_name} | Encryption: {encryption}{key_info} | Auth: {auth}{Style.RESET_ALL}
 
 {Fore.GREEN}Session:{Style.RESET_ALL}
   share start [port]        - Start host session (AI-assisted)
   share start --no-ai       - Start without AI (direct command execution)
-  share connect IP:PORT     - Connect to host
+  share connect IP:PORT     - Connect to host (requires auth code)
   share end                 - End session
+
+{Fore.RED}Security (Host Only):{Style.RESET_ALL}
+  share auth                - Show auth code & security status
+  share auth new            - Regenerate authentication code
+  share auth on/off         - Enable/disable authentication
+  share unban [ip|all]      - Unban IP address(es)
 
 {Fore.GREEN}Encryption:{Style.RESET_ALL}
   share encrypt             - Show encryption status & full key
@@ -2015,7 +2141,7 @@ class ZAIShell:
 
 {Fore.MAGENTA}Global Access (ngrok):{Style.RESET_ALL}
   1. Host: Run 'ngrok tcp 5757'
-  2. Share the ngrok URL (e.g., 0.tcp.ngrok.io:12345)
+  2. Share the ngrok URL AND the auth code
   3. Helper: 'share connect 0.tcp.ngrok.io:12345'
 """)
     
