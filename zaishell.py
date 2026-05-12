@@ -5,7 +5,9 @@ import time
 import datetime
 import json
 import platform
+import threading
 import re
+import queue
 try:
     import keyboard
 except ImportError:
@@ -27,7 +29,7 @@ from sentinel import Sentinel, get_sentinel, ThreatLevel
 
 init(autoreset=True)
 
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', "Or Enter Your API Key Here")
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', "Or Enter API Key Here")
 genai.configure(api_key=GEMINI_API_KEY)
 
 MEMORY_FILE = ".zaishell_memory.json"
@@ -492,6 +494,19 @@ class ModeManager:
 - NO <thinking> tags.
 - ONE action only (chain commands with && or ; if needed).
 - Example: {"understanding":"Delete logs","actions":[{"type":"command","details":{"shell":"cmd","content":"del *.log","encoding":"cp1254"}}],"response":"Done"}
+"""
+        },
+        "fixer": {
+            "model": "gemini-2.5-flash",
+            "temperature": 0.3,
+            "description": "Fixer mode - Dedicated system repair and troubleshooting",
+            "instruction_modifier": """
+🔧 FIXER MODE RULES:
+- You are a dedicated system repair and troubleshooting agent.
+- You ONLY handle requests related to fixing errors, bugs, corrupted files, missing dependencies, or system issues.
+- If the user asks for general tasks (e.g. "create a file", "write a poem", "what is the time?"), you MUST decline and state your purpose: "I can only help you with system repair and troubleshooting."
+- Provide precise, safe commands to resolve issues.
+- Ask for clarification if the issue is ambiguous before running destructive commands.
 """
         }
     }
@@ -1342,8 +1357,7 @@ START!'''
                     print(f"\n{Fore.CYAN}Understanding: {understanding}{Style.RESET_ALL}")
                 actions = ai_plan.get('actions', [])
                 if show_only:
-                    self._show_actions_preview(actions, ai_plan.get('response', ''))
-                    return {"success": True, "message": "Preview only - no actions executed"}
+                    return self._handle_simulation(actions, original_request)
                 if safe_mode and actions:
                     blocked = self._check_dangerous_commands(actions)
                     if blocked:
@@ -1413,6 +1427,23 @@ START!'''
         except Exception as e:
             return self._handle_error(e, original_request)
     
+    def _handle_simulation(self, actions, original_request):
+        print(f"\n{Fore.CYAN}Simulating actions...{Style.RESET_ALL}")
+        prompt = f"Simulate exactly what these actions will do: {json.dumps(actions)}. Mention files changed, system state, and risks. Keep it concise."
+        try:
+            sim_result = self.model.generate_content(prompt).text
+            print(f"\n{Fore.MAGENTA}SIMULATION PREDICTION:{Style.RESET_ALL}")
+            print(f"{Fore.WHITE}{sim_result}{Style.RESET_ALL}")
+            choice = input(f"\n{Fore.YELLOW}Execute these actions? (Y/N): {Style.RESET_ALL}").strip().upper()
+            if choice == 'Y':
+                results = []
+                for i, action in enumerate(actions, 1):
+                    results.append(self._execute_action(action, i, len(actions), user_request=original_request))
+                return {"success": True, "results": results}
+            return {"success": True, "message": "Simulation cancelled"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def _check_dangerous_commands(self, actions):
         import unicodedata
         
@@ -1713,6 +1744,92 @@ Only write the response text, nothing else. No JSON, no explanation, just the re
             return outputs[0] if outputs else "Operation completed!"
 
 
+class WatchManager:
+    """Manages background watch tasks"""
+    def __init__(self, brain):
+        self.brain = brain
+        self.watches = {}
+        self.next_watch_id = 1
+        self.triggered_watches = []
+        
+    def add_watch(self, condition_text):
+        print(f"\n{Fore.CYAN}Setting up background watch for: '{condition_text}'...{Style.RESET_ALL}")
+        
+        prompt = f"""Generate a Python script to check this condition: "{condition_text}".
+The script MUST define a variable named 'condition_met' that is True if the condition is met, and False otherwise.
+You can use 'psutil', 'os', 'subprocess', 'requests', 'time'.
+If checking ram/cpu, use 'psutil.virtual_memory().percent' or 'psutil.cpu_percent()'.
+NOTE: This script will be executed repeatedly in the same local namespace. If you need to detect 'changes' over time, you can initialize a state variable (e.g., if 'prev_state' not in locals(): prev_state = current).
+Output ONLY the raw Python code, no markdown formatting, no explanations, no text before or after."""
+        
+        try:
+            response = self.brain.model.generate_content(prompt)
+            script = response.text.replace('```python', '').replace('```', '').strip()
+            
+            compile(script, '<string>', 'exec')
+            
+            watch_id = self.next_watch_id
+            self.next_watch_id += 1
+            stop_event = threading.Event()
+            
+            thread = threading.Thread(target=self._watch_loop, args=(script, condition_text, watch_id, stop_event), daemon=True)
+            
+            self.watches[watch_id] = {
+                "thread": thread,
+                "stop_event": stop_event,
+                "condition": condition_text
+            }
+            
+            thread.start()
+            print(f"{Fore.GREEN}Watch [ID: {watch_id}] active! You will be alerted when the condition is met.{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.RED}Failed to setup watch: {e}{Style.RESET_ALL}")
+            
+    def list_watches(self):
+        if not self.watches:
+            print(f"\n{Fore.YELLOW}No active watches.{Style.RESET_ALL}")
+            return
+        print(f"\n{Fore.CYAN}Active Watches:{Style.RESET_ALL}")
+        for wid, info in list(self.watches.items()):
+            if info["thread"].is_alive():
+                print(f"  [{wid}] {info['condition']}")
+            else:
+                del self.watches[wid]
+                
+    def stop_watch(self, watch_id):
+        if watch_id in self.watches:
+            self.watches[watch_id]["stop_event"].set()
+            print(f"\n{Fore.GREEN}Watch [ID: {watch_id}] stopped.{Style.RESET_ALL}")
+            del self.watches[watch_id]
+        else:
+            print(f"\n{Fore.RED}Watch ID {watch_id} not found.{Style.RESET_ALL}")
+
+    def _watch_loop(self, script, condition_text, watch_id, stop_event):
+        time.sleep(15)
+        local_vars = {}
+        import psutil
+        while not stop_event.is_set():
+            try:
+                exec(script, {"os": os, "sys": sys, "subprocess": subprocess, "psutil": psutil, "time": time}, local_vars)
+                if local_vars.get('condition_met') is True:
+                    while not getattr(self.brain, 'is_idle', True) and not stop_event.is_set():
+                        time.sleep(2)
+                        
+                    if stop_event.is_set():
+                        break
+                        
+                    self.triggered_watches.append(condition_text)
+                    print(f"\n\r{Fore.RED}[WATCH ALERT]{Style.RESET_ALL} Condition met: {condition_text}")
+                    print(f"{Fore.YELLOW}Type '1' to Ignore, '2' to Send to ZaiShell.{Style.RESET_ALL}")
+                    print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
+                    if watch_id in self.watches:
+                        del self.watches[watch_id]
+                    break
+            except Exception:
+                pass
+            time.sleep(60)
+
+
 class ZAIShell:
     """Main shell interface v8.0 - E2E Encryption"""
     
@@ -1720,6 +1837,7 @@ class ZAIShell:
         self.memory = ChromaMemoryManager()
         self.telemetry = TelemetryManager(self.memory.json_manager)
         self.brain = AIBrain(self.memory, self.telemetry)
+        self.watch_manager = WatchManager(self.brain)
         self.start_time = datetime.datetime.now()
         self.request_count = 0
         if self.telemetry.is_enabled():
@@ -1732,7 +1850,27 @@ class ZAIShell:
                 self.brain.research_enabled,
                 primary_shell
             )
-    
+        self._start_hotkey_listener()
+
+    def _start_hotkey_listener(self):
+        if keyboard is None:
+            return
+        def on_hotkey():
+            print(f"\n{Fore.CYAN}[HOTKEY DETECTED] Context capture initiated...{Style.RESET_ALL}")
+            try:
+                import pyautogui
+                temp_path = os.path.join(os.environ.get('TEMP', '.'), 'zai_context.png')
+                pyautogui.screenshot(temp_path)
+                with open('.zai_pending_task.txt', 'w', encoding='utf-8') as f:
+                    f.write(f"Analyze screenshot {temp_path} and fix the error on screen.")
+                keyboard.send('enter')
+            except Exception as e:
+                pass
+        try:
+            keyboard.add_hotkey('ctrl+shift+z', on_hotkey)
+        except Exception:
+            pass
+
     def show_banner(self):
         ctx = self.brain.context
         shells = ', '.join(ctx['available_shells'])
@@ -1757,7 +1895,7 @@ class ZAIShell:
         lessons_count = len(self.brain.sentinel.lesson_memory.lessons)
         print(f"""
 {Fore.CYAN}========================================================
-          ZAI v9.0.3 - Advanced AI Shell + SENTINEL 1.5
+          ZAI v9.1.0 - Advanced AI Shell + SENTINEL 1.5
    Terminal | GUI | Research | P2P | E2E | Self-Preserve
 ========================================================{Style.RESET_ALL}
 
@@ -1775,7 +1913,8 @@ class ZAIShell:
 
 {Fore.BLUE}Commands:{Style.RESET_ALL}
   {Fore.CYAN}Features:{Style.RESET_ALL} gui on/off, research on/off
-  {Fore.CYAN}Modes:{Style.RESET_ALL} normal, eco, lightning
+  {Fore.CYAN}Modes:{Style.RESET_ALL} normal, eco, lightning, fixer
+  {Fore.CYAN}Watch:{Style.RESET_ALL} --watch <cond>, watch list, watch stop <id>
   {Fore.CYAN}Network:{Style.RESET_ALL} switch offline, switch online
   {Fore.CYAN}Thinking:{Style.RESET_ALL} thinking on/off
   {Fore.CYAN}Sharing:{Style.RESET_ALL} share, share connect IP:PORT, share end
@@ -2177,9 +2316,22 @@ class ZAIShell:
             self.show_banner()
             while True:
                 try:
+                    self.brain.is_idle = True
                     user_input = input(f"\n{Fore.GREEN}You >>> {Style.RESET_ALL}").strip()
+                    self.brain.is_idle = False
                     if not user_input:
-                        continue
+                        if os.path.exists('.zai_pending_task.txt'):
+                            try:
+                                with open('.zai_pending_task.txt', 'r', encoding='utf-8', errors='replace') as f:
+                                    user_input = f.read().strip()
+                            finally:
+                                try:
+                                    os.remove('.zai_pending_task.txt')
+                                except:
+                                    pass
+                            print(f"{Fore.MAGENTA}Automated Task: {user_input}{Style.RESET_ALL}")
+                        else:
+                            continue
                     if user_input.lower() in ['exit', 'quit', 'bye']:
                         duration = datetime.datetime.now() - self.start_time
                         if self.telemetry.is_enabled():
@@ -2194,6 +2346,40 @@ class ZAIShell:
                     if user_input.lower().startswith('share'):
                         self.handle_share_command(user_input)
                         continue
+                    if user_input.lower() == 'watch list':
+                        self.watch_manager.list_watches()
+                        continue
+                    if user_input.lower().startswith('watch stop '):
+                        try:
+                            wid = int(user_input.split()[-1])
+                            self.watch_manager.stop_watch(wid)
+                        except ValueError:
+                            print(f"{Fore.RED}Invalid watch ID.{Style.RESET_ALL}")
+                        continue
+                    if '--watch' in user_input.lower() or user_input.lower().startswith('watch '):
+                        condition_text = user_input.lower().replace('--watch', '').strip()
+                        if condition_text.startswith('watch '):
+                            condition_text = condition_text[6:].strip()
+                        self.watch_manager.add_watch(condition_text)
+                        continue
+                    if user_input.strip() == '1' and self.watch_manager.triggered_watches:
+                        self.watch_manager.triggered_watches.pop(0)
+                        print(f"{Fore.YELLOW}Watch alert ignored.{Style.RESET_ALL}")
+                        continue
+                    if user_input.strip() == '2' and self.watch_manager.triggered_watches:
+                        triggered_condition = self.watch_manager.triggered_watches.pop(0)
+                        print(f"\n{Fore.MAGENTA}Sending watch condition to ZaiShell: {triggered_condition}{Style.RESET_ALL}")
+                        user_input = f"A background monitoring system just detected that this condition is currently TRUE: '{triggered_condition}'. Please investigate the system to find out why this happened and provide commands to resolve or fix the underlying issue."
+                        self.brain.switch_mode('fixer', permanent=False)
+                    elif user_input.lower() == 'fix watch':
+                        if self.watch_manager.triggered_watches:
+                            triggered_condition = self.watch_manager.triggered_watches.pop(0)
+                            print(f"\n{Fore.MAGENTA}Sending watch condition to ZaiShell: {triggered_condition}{Style.RESET_ALL}")
+                            user_input = f"A background monitoring system just detected that this condition is currently TRUE: '{triggered_condition}'. Please investigate the system to find out why this happened and provide commands to resolve or fix the underlying issue."
+                            self.brain.switch_mode('fixer', permanent=False)
+                        else:
+                            print(f"{Fore.YELLOW}No active watch alerts to fix.{Style.RESET_ALL}")
+                            continue
                     if user_input.lower() == 'switch offline':
                         self.brain.switch_to_offline()
                         continue

@@ -264,9 +264,14 @@ Respond in a structured format."""
                 {"mime_type": mime_type, "data": img_data}
             ])
             
+            try:
+                analysis_text = response.text
+            except Exception:
+                analysis_text = "Image analysis returned empty or was blocked by safety filters."
+                
             return {
                 "success": True,
-                "analysis": response.text,
+                "analysis": analysis_text,
                 "file": image_path
             }
             
