@@ -155,6 +155,36 @@ Return ONLY the optimized search keywords."""
         
         return []
     
+    def deep_read(self, url: str) -> str:
+        """Fetch and extract text content from a URL"""
+        if not REQUESTS_AVAILABLE or not BS4_AVAILABLE:
+            return "Error: requests or bs4 library not available"
+            
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                return f"Error: HTTP {response.status_code}"
+                
+            soup = BeautifulSoup(response.text, 'html.parser')
+            for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+                tag.decompose()
+                
+            text = soup.get_text(separator='\n', strip=True)
+            
+            try:
+                from sentinel import get_sentinel
+                injection_check = get_sentinel().check_prompt_injection(text)
+                if not injection_check.get("safe"):
+                    return f"Blocked by Sentinel: Prompt injection attempt detected {injection_check.get('threats')}"
+            except Exception:
+                pass
+                
+            return text[:15000]
+            
+        except Exception as e:
+            return f"Error reading page: {str(e)}"
+    
     def format_results_for_ai(self, results: List[Dict], query: str) -> str:
         """Format search results for AI consumption with emphasis on accurate data extraction"""
         if not results:

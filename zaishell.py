@@ -37,6 +37,8 @@ CHROMA_DB_PATH = ".zaishell_chromadb"
 CHROMA_COLLECTION_NAME = "zaishell_memory"
 OFFLINE_MODEL_PATH = ".zaishell_offline_model"
 OFFLINE_MODEL_NAME = "microsoft/phi-2"
+BACKUP_DIR = ".zaishell_backups"
+MAX_BACKUPS = 20
 
 
 def extract_json_from_text(text: str) -> Optional[Dict]:
@@ -554,6 +556,9 @@ class AITools:
             if directory and not os.path.exists(directory):
                 os.makedirs(directory, exist_ok=True)
             
+            if os.path.exists(path):
+                self._backup_file(path)
+            
             if mode == 'binary':
                 if isinstance(content, bytes):
                     with open(path, 'wb') as f:
@@ -749,6 +754,100 @@ class AITools:
         
         success_count = sum(1 for r in results if r.get('success'))
         return {"success": success_count > 0, "completed": success_count, "total": len(tasks), "results": results}
+    
+    def _backup_file(self, path):
+        """Backup a file before modifying it (for undo/rollback)"""
+        try:
+            os.makedirs(BACKUP_DIR, exist_ok=True)
+            timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            basename = os.path.basename(path)
+            backup_name = f"{timestamp}_{basename}"
+            backup_path = os.path.join(BACKUP_DIR, backup_name)
+            import shutil
+            shutil.copy2(path, backup_path)
+            meta_file = os.path.join(BACKUP_DIR, '.backup_stack.json')
+            stack = []
+            if os.path.exists(meta_file):
+                with open(meta_file, 'r', encoding='utf-8') as f:
+                    stack = json.load(f)
+            stack.append({"original": os.path.abspath(path), "backup": backup_path, "time": timestamp})
+            if len(stack) > MAX_BACKUPS:
+                old = stack.pop(0)
+                try: os.remove(old['backup'])
+                except: pass
+            with open(meta_file, 'w', encoding='utf-8') as f:
+                json.dump(stack, f, indent=2)
+        except Exception:
+            pass
+    
+    @staticmethod
+    def undo_last():
+        """Restore the last backed-up file"""
+        meta_file = os.path.join(BACKUP_DIR, '.backup_stack.json')
+        if not os.path.exists(meta_file):
+            return {"success": False, "error": "No backups found"}
+        try:
+            with open(meta_file, 'r', encoding='utf-8') as f:
+                stack = json.load(f)
+            if not stack:
+                return {"success": False, "error": "Backup stack is empty"}
+            entry = stack.pop()
+            import shutil
+            shutil.copy2(entry['backup'], entry['original'])
+            os.remove(entry['backup'])
+            with open(meta_file, 'w', encoding='utf-8') as f:
+                json.dump(stack, f, indent=2)
+            return {"success": True, "restored": entry['original'], "from_backup": entry['time']}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def read_file(self, details):
+        """Read file contents"""
+        try:
+            path = details.get('path', '')
+            encoding = details.get('encoding', 'utf-8')
+            if not path:
+                return {"success": False, "error": "File path not specified"}
+            path = os.path.normpath(os.path.expanduser(path))
+            if not os.path.exists(path):
+                return {"success": False, "error": f"File not found: {path}"}
+            with open(path, 'r', encoding=encoding, errors='replace') as f:
+                content = f.read(50000)
+            
+            from sentinel import get_sentinel
+            injection_check = get_sentinel().check_prompt_injection(content)
+            if not injection_check.get("safe"):
+                return {"success": False, "error": f"Blocked by Sentinel: Prompt injection attempt detected {injection_check.get('threats')}"}
+                
+            return {"success": True, "content": content, "path": path, "size": len(content)}
+        except Exception as e:
+            return {"success": False, "error": f"Read error: {str(e)}"}
+    
+    def edit_file(self, details):
+        """Edit file by find/replace"""
+        try:
+            path = details.get('path', '')
+            find_text = details.get('find', '')
+            replace_text = details.get('replace', '')
+            encoding = details.get('encoding', 'utf-8')
+            if not path or not find_text:
+                return {"success": False, "error": "Path and find text required"}
+            path = os.path.normpath(os.path.expanduser(path))
+            if not os.path.exists(path):
+                return {"success": False, "error": f"File not found: {path}"}
+            with open(path, 'r', encoding=encoding, errors='replace') as f:
+                content = f.read()
+            if find_text not in content:
+                return {"success": False, "error": f"Text not found in {path}"}
+            self._backup_file(path)
+            count = content.count(find_text)
+            new_content = content.replace(find_text, replace_text)
+            with open(path, 'w', encoding=encoding, errors='replace') as f:
+                f.write(new_content)
+            return {"success": True, "path": path, "replacements": count}
+        except Exception as e:
+            return {"success": False, "error": f"Edit error: {str(e)}"}
+
 
 
 class AIBrain:
@@ -775,6 +874,7 @@ class AIBrain:
         self.max_retries = 5
         self.temp_mode = None
         self._task_context = TaskContext()
+        self._action_results = []
         self._web_research = None
         self._image_analyzer = None
         self._gui_bridge = None
@@ -1298,17 +1398,19 @@ SYSTEM INFORMATION:
 - Documents: {self.context['documents']}
 {thinking_instruction}
 YOUR CAPABILITIES:
-1. FILE/DIRECTORY OPERATIONS
+1. FILE/DIRECTORY OPERATIONS (create, write)
 2. SYSTEM COMMANDS - FULL SHELL FREEDOM
 3. CODE WRITING
 4. INFORMATION GATHERING
 5. MULTI-TASKING
+6. FILE READING - Read existing file contents
+7. FILE EDITING - Find/replace in existing files
 RESPONSE FORMAT (JSON):
 {{
     "understanding": "User request in ONE SENTENCE",
     "actions": [
         {{
-            "type": "file|command|code|info|multi",
+            "type": "file|command|code|info|multi|read|edit",
             "description": "What will be done",
             "details": {{
                 "path": "file/path (if applicable)",
@@ -1316,15 +1418,23 @@ RESPONSE FORMAT (JSON):
                 "shell": "cmd|powershell|pwsh|bash|sh",
                 "language": "code language (if applicable)",
                 "encoding": "REQUIRED! Choose the best encoding for the task",
-                "mode": "binary|text (if applicable)"
+                "mode": "binary|text (if applicable)",
+                "find": "text to find (for edit type only)",
+                "replace": "replacement text (for edit type only)"
             }}
         }}
     ],
     "response": "Natural language response to user"
 }}
+ACTION TYPE RULES:
+- type "read": Read file contents. Use details.path. Returns content in output.
+- type "edit": Find/replace in file. Use details.path + details.find + details.replace.
+- type "file": Create/overwrite file. Use details.path + details.content.
+- type "command": Run shell command. Use details.shell + details.content.
 ENCODING RULE: You MUST always specify encoding! Use 'utf-8' for text files. For shell commands, use '{SYSTEM_ENCODING}' or 'utf-8'. NEVER output 'system' as the encoding string.
 CONVERSATION HISTORY:
 {history_text}
+{self._get_chain_context()}
 CURRENT TASK:
 {main_content}
 START!'''
@@ -1414,6 +1524,7 @@ START!'''
                     self.telemetry.track_auto_retry(retry_count, self.max_retries, True)
                 if retry_count == 0 or not any(not r.get('success') for r in results):
                     self.memory.add_conversation("assistant", response)
+                self._store_chain_result(original_request, results, response)
                 return {"success": True, "results": results}
             else:
                 print(f"\n{Fore.CYAN}ZAI: {ai_text}{Style.RESET_ALL}")
@@ -1679,6 +1790,10 @@ START!'''
                 result = self.tools.gather_info(details)
             elif action_type == 'multi':
                 result = self.tools.multi_task(details)
+            elif action_type == 'read':
+                result = self.tools.read_file(details)
+            elif action_type == 'edit':
+                result = self.tools.edit_file(details)
             else:
                 result = {"success": False, "error": f"Unknown action: {action_type}"}
             
@@ -1742,6 +1857,35 @@ Only write the response text, nothing else. No JSON, no explanation, just the re
             return response.text.strip()
         except Exception:
             return outputs[0] if outputs else "Operation completed!"
+    
+    def _store_chain_result(self, request, results, response):
+        """Store action result for conversation chain context"""
+        output_summary = ""
+        for r in (results or []):
+            if r.get('output'):
+                output_summary += r['output'][:500] + "\n"
+            elif r.get('content'):
+                output_summary += r['content'][:500] + "\n"
+            elif r.get('info'):
+                output_summary += str(r['info'])[:500] + "\n"
+        self._action_results.append({
+            "request": request[:200],
+            "output": output_summary[:800] if output_summary else response[:200],
+            "success": all(r.get('success') for r in (results or []))
+        })
+        if len(self._action_results) > 5:
+            self._action_results = self._action_results[-5:]
+    
+    def _get_chain_context(self):
+        """Get conversation chain context for AI prompt"""
+        if not self._action_results:
+            return ""
+        lines = ["RECENT ACTION RESULTS (use for context):"]
+        for i, ar in enumerate(self._action_results[-3:], 1):
+            status = "OK" if ar['success'] else "FAILED"
+            lines.append(f"  [{i}] Request: {ar['request'][:100]}")
+            lines.append(f"      Output ({status}): {ar['output'][:300]}")
+        return "\n".join(lines)
 
 
 class WatchManager:
@@ -1752,7 +1896,7 @@ class WatchManager:
         self.next_watch_id = 1
         self.triggered_watches = []
         
-    def add_watch(self, condition_text):
+    def add_watch(self, condition_text, auto_fix=False):
         print(f"\n{Fore.CYAN}Setting up background watch for: '{condition_text}'...{Style.RESET_ALL}")
         
         prompt = f"""Generate a Python script to check this condition: "{condition_text}".
@@ -1768,11 +1912,18 @@ Output ONLY the raw Python code, no markdown formatting, no explanations, no tex
             
             compile(script, '<string>', 'exec')
             
+            print(f"\n{Fore.YELLOW}Generated Watch Script:{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{script}{Style.RESET_ALL}")
+            choice = input(f"\n{Fore.YELLOW}Do you want to activate this watch? (Y/N): {Style.RESET_ALL}").strip().upper()
+            if choice != 'Y':
+                print(f"{Fore.RED}Watch cancelled.{Style.RESET_ALL}")
+                return
+            
             watch_id = self.next_watch_id
             self.next_watch_id += 1
             stop_event = threading.Event()
             
-            thread = threading.Thread(target=self._watch_loop, args=(script, condition_text, watch_id, stop_event), daemon=True)
+            thread = threading.Thread(target=self._watch_loop, args=(script, condition_text, watch_id, stop_event, auto_fix), daemon=True)
             
             self.watches[watch_id] = {
                 "thread": thread,
@@ -1804,7 +1955,7 @@ Output ONLY the raw Python code, no markdown formatting, no explanations, no tex
         else:
             print(f"\n{Fore.RED}Watch ID {watch_id} not found.{Style.RESET_ALL}")
 
-    def _watch_loop(self, script, condition_text, watch_id, stop_event):
+    def _watch_loop(self, script, condition_text, watch_id, stop_event, auto_fix):
         time.sleep(15)
         local_vars = {}
         import psutil
@@ -1819,9 +1970,18 @@ Output ONLY the raw Python code, no markdown formatting, no explanations, no tex
                         break
                         
                     self.triggered_watches.append(condition_text)
-                    print(f"\n\r{Fore.RED}[WATCH ALERT]{Style.RESET_ALL} Condition met: {condition_text}")
-                    print(f"{Fore.YELLOW}Type '1' to Ignore, '2' to Send to ZaiShell.{Style.RESET_ALL}")
-                    print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
+                    if auto_fix:
+                        print(f"\n\r{Fore.RED}[WATCH ALERT]{Style.RESET_ALL} Auto-fixing condition: {condition_text}")
+                        print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
+                        with open('.zai_pending_task.txt', 'w', encoding='utf-8') as f:
+                            f.write(f"FIX_WATCH_CONDITION: {condition_text}")
+                        if 'keyboard' in sys.modules:
+                            sys.modules['keyboard'].send('enter')
+                    else:
+                        print(f"\n\r{Fore.RED}[WATCH ALERT]{Style.RESET_ALL} Condition met: {condition_text}")
+                        print(f"{Fore.YELLOW}Type '1' to Ignore, '2' to Send to ZaiShell.{Style.RESET_ALL}")
+                        print(f"{Fore.GREEN}You >>> {Style.RESET_ALL}", end="", flush=True)
+                        
                     if watch_id in self.watches:
                         del self.watches[watch_id]
                     break
@@ -1895,8 +2055,8 @@ class ZAIShell:
         lessons_count = len(self.brain.sentinel.lesson_memory.lessons)
         print(f"""
 {Fore.CYAN}========================================================
-          ZAI v9.1.0 - Advanced AI Shell + SENTINEL 1.5
-   Terminal | GUI | Research | P2P | E2E | Self-Preserve
+          ZAI v9.2.0 - Advanced AI Shell + SENTINEL 1.5
+   Terminal | GUI | Research | P2P | E2E | Auto-Mode
 ========================================================{Style.RESET_ALL}
 
 {Fore.GREEN}I understand natural language in ANY language{Style.RESET_ALL}
@@ -1919,9 +2079,9 @@ class ZAIShell:
   {Fore.CYAN}Thinking:{Style.RESET_ALL} thinking on/off
   {Fore.CYAN}Sharing:{Style.RESET_ALL} share, share connect IP:PORT, share end
   {Fore.CYAN}Memory:{Style.RESET_ALL} memory clear/show/search [query]
-  {Fore.CYAN}Sentinel:{Style.RESET_ALL} sentinel on/off/status/reset
-  {Fore.CYAN}Safety:{Style.RESET_ALL} --safe, --show, --force
-  {Fore.CYAN}Other:{Style.RESET_ALL} clear, exit
+  {Fore.CYAN}Sentinel:{Style.RESET_ALL} sentinel on/off/status/reset/report
+  {Fore.CYAN}Execution:{Style.RESET_ALL} --auto, --safe, --show, --force
+  {Fore.CYAN}Other:{Style.RESET_ALL} undo, clear, exit
 
 {Fore.MAGENTA}Just tell me what you need - I'll figure out how!{Style.RESET_ALL}
 {Fore.WHITE}{'=' * 60}{Style.RESET_ALL}
@@ -2288,6 +2448,7 @@ class ZAIShell:
         force = False
         safe_mode = False
         show_only = False
+        auto_mode = False
         temp_mode = None
         user_input_lower = user_input.lower()
         if '--force' in user_input_lower or ' -f' in user_input_lower:
@@ -2301,13 +2462,62 @@ class ZAIShell:
         if '--show' in user_input_lower:
             show_only = True
             user_input = user_input.replace('--show', '').replace('--SHOW', '')
+        if '--auto' in user_input_lower:
+            auto_mode = True
+            force = True
+            user_input = user_input.replace('--auto', '').replace('--AUTO', '')
         words = user_input.split()
         if len(words) > 1:
             last_word = words[-1].lower()
             if ModeManager.is_valid_mode(last_word):
                 temp_mode = last_word
                 user_input = ' '.join(words[:-1])
-        return user_input.strip(), force, safe_mode, show_only, temp_mode
+        return user_input.strip(), force, safe_mode, show_only, temp_mode, auto_mode
+
+    def _run_auto_loop(self, original_request, last_result, safe_mode):
+        """Autonomous execution loop — AI decides next steps until task is complete"""
+        MAX_AUTO_STEPS = 10
+        step = 0
+        while step < MAX_AUTO_STEPS:
+            step += 1
+            outputs = []
+            for r in (last_result.get('results') or []):
+                if r.get('output'):
+                    outputs.append(r['output'][:500])
+                elif r.get('content'):
+                    outputs.append(r['content'][:300])
+                elif r.get('error'):
+                    outputs.append(f"ERROR: {r['error']}")
+            output_text = "\n".join(outputs) if outputs else "Completed successfully"
+            
+            follow_up = f"""AUTONOMOUS MODE — Step {step}/{MAX_AUTO_STEPS}
+Original task: {original_request}
+Last action output:
+{output_text[:1500]}
+
+IMPORTANT: Analyze the output above. You have two options:
+1. If the original task is COMPLETE and nothing more needs to be done, respond with ONLY this JSON:
+   {{"understanding": "Task complete", "actions": [], "response": "your summary of what was accomplished"}}
+2. If more steps are needed, respond with the NEXT action to perform.
+
+Do NOT repeat actions that already succeeded. Only continue if there is genuinely more work to do."""
+            
+            print(f"\n{Fore.MAGENTA}[AUTO Step {step}] Evaluating...{Style.RESET_ALL}")
+            result = self.brain.think_and_act(follow_up, force_execute=True, safe_mode=safe_mode)
+            
+            if not result or not result.get('success'):
+                print(f"{Fore.YELLOW}[AUTO] Stopping — action failed{Style.RESET_ALL}")
+                break
+            
+            results = result.get('results', [])
+            if not results:
+                print(f"{Fore.GREEN}[AUTO] Task complete{Style.RESET_ALL}")
+                break
+            
+            last_result = result
+        
+        if step >= MAX_AUTO_STEPS:
+            print(f"{Fore.YELLOW}[AUTO] Max steps ({MAX_AUTO_STEPS}) reached{Style.RESET_ALL}")
 
     
     def run(self):
@@ -2323,13 +2533,21 @@ class ZAIShell:
                         if os.path.exists('.zai_pending_task.txt'):
                             try:
                                 with open('.zai_pending_task.txt', 'r', encoding='utf-8', errors='replace') as f:
-                                    user_input = f.read().strip()
+                                    pending_text = f.read().strip()
                             finally:
                                 try:
                                     os.remove('.zai_pending_task.txt')
                                 except:
                                     pass
-                            print(f"{Fore.MAGENTA}Automated Task: {user_input}{Style.RESET_ALL}")
+                            
+                            if pending_text.startswith('FIX_WATCH_CONDITION: '):
+                                triggered_condition = pending_text.replace('FIX_WATCH_CONDITION: ', '')
+                                print(f"\n{Fore.MAGENTA}Auto-fixing watch condition: {triggered_condition}{Style.RESET_ALL}")
+                                user_input = f"A background monitoring system just detected that this condition is currently TRUE: '{triggered_condition}'. Please investigate the system to find out why this happened and provide commands to resolve or fix the underlying issue."
+                                self.brain.switch_mode('fixer', permanent=False)
+                            else:
+                                user_input = pending_text
+                                print(f"{Fore.MAGENTA}Automated Task: {user_input}{Style.RESET_ALL}")
                         else:
                             continue
                     if user_input.lower() in ['exit', 'quit', 'bye']:
@@ -2342,6 +2560,14 @@ class ZAIShell:
                     if user_input.lower() in ['clear', 'cls']:
                         os.system('cls' if os.name == 'nt' else 'clear')
                         self.show_banner()
+                        continue
+                    if user_input.lower() == 'undo':
+                        result = AITools.undo_last()
+                        if result.get('success'):
+                            print(f"\n{Fore.GREEN}✓ Restored: {result['restored']}{Style.RESET_ALL}")
+                            print(f"{Fore.CYAN}  From backup: {result['from_backup']}{Style.RESET_ALL}")
+                        else:
+                            print(f"\n{Fore.RED}{result.get('error')}{Style.RESET_ALL}")
                         continue
                     if user_input.lower().startswith('share'):
                         self.handle_share_command(user_input)
@@ -2356,11 +2582,18 @@ class ZAIShell:
                         except ValueError:
                             print(f"{Fore.RED}Invalid watch ID.{Style.RESET_ALL}")
                         continue
-                    if '--watch' in user_input.lower() or user_input.lower().startswith('watch '):
-                        condition_text = user_input.lower().replace('--watch', '').strip()
-                        if condition_text.startswith('watch '):
-                            condition_text = condition_text[6:].strip()
-                        self.watch_manager.add_watch(condition_text)
+                    user_input_lower = user_input.lower()
+                    if '--watch' in user_input_lower or user_input_lower.startswith('watch '):
+                        auto_fix = False
+                        if '--force' in user_input_lower:
+                            auto_fix = True
+                            user_input = re.sub(r'(?i)--force\b', '', user_input)
+                        
+                        condition_text = re.sub(r'(?i)--watch\b', '', user_input).strip()
+                        if condition_text.lower().startswith('watch '):
+                            condition_text = re.sub(r'(?i)^watch\s+', '', condition_text).strip()
+                            
+                        self.watch_manager.add_watch(condition_text, auto_fix)
                         continue
                     if user_input.strip() == '1' and self.watch_manager.triggered_watches:
                         self.watch_manager.triggered_watches.pop(0)
@@ -2573,10 +2806,16 @@ class ZAIShell:
                                 print(f"{Fore.GREEN}Lessons cleared{Style.RESET_ALL}")
                             else:
                                 print(f"{Fore.CYAN}Cancelled{Style.RESET_ALL}")
+                        elif subcommand == 'report':
+                            report_path = self.brain.sentinel.generate_report()
+                            if report_path:
+                                print(f"\n{Fore.GREEN}✓ Report saved: {report_path}{Style.RESET_ALL}")
+                            else:
+                                print(f"\n{Fore.RED}Report generation failed{Style.RESET_ALL}")
                         else:
-                            print(f"\n{Fore.YELLOW}Usage: sentinel [on|off|status|reset|lessons|clear-lessons]{Style.RESET_ALL}")
+                            print(f"\n{Fore.YELLOW}Usage: sentinel [on|off|status|reset|lessons|clear-lessons|report]{Style.RESET_ALL}")
                         continue
-                    parsed_input, force, safe_mode, show_only, temp_mode = self.parse_command(user_input)
+                    parsed_input, force, safe_mode, show_only, temp_mode, auto_mode = self.parse_command(user_input)
                     if temp_mode:
                         self.brain.switch_mode(temp_mode, permanent=False)
                         mode_config = ModeManager.get_mode_config(temp_mode)
@@ -2590,6 +2829,8 @@ class ZAIShell:
                         indicators.append(f"{Fore.RED}FORCE{Style.RESET_ALL}")
                         if self.telemetry.is_enabled():
                             self.telemetry.track_force_command()
+                    if auto_mode:
+                        indicators.append(f"{Fore.MAGENTA}AUTO{Style.RESET_ALL}")
                     if self.brain.p2p_sharing.is_connected and self.brain.p2p_sharing.safe_mode_always:
                         indicators.append(f"{Fore.MAGENTA}SHARING-SAFE{Style.RESET_ALL}")
                         safe_mode = True
@@ -2723,7 +2964,9 @@ class ZAIShell:
                                 self.brain.think_and_act(parsed_input, force_execute=force, safe_mode=safe_mode, show_only=show_only)
                     else:
                         print(f"\n{Fore.YELLOW}Processing...{Style.RESET_ALL}")
-                        self.brain.think_and_act(parsed_input, force_execute=force, safe_mode=safe_mode, show_only=show_only)
+                        result = self.brain.think_and_act(parsed_input, force_execute=force, safe_mode=safe_mode, show_only=show_only)
+                        if auto_mode and result.get('success'):
+                            self._run_auto_loop(parsed_input, result, safe_mode)
                     if self.brain.p2p_sharing.is_connected:
                         self.brain.p2p_sharing.add_terminal_log(f"Request: {parsed_input[:100]}")
                     duration = time.time() - start

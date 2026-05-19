@@ -1179,6 +1179,80 @@ class Sentinel:
         """Clear learned lessons - separate from state reset"""
         self.lesson_memory.clear()
         self._log("Sentinel lessons cleared")
+    
+    def generate_report(self) -> str:
+        """Generate a markdown session report"""
+        try:
+            timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            filename = f".zaishell_report_{timestamp}.md"
+            
+            total = len(self.behavior_history)
+            successes = sum(1 for s in self.behavior_history if s.success)
+            failures = total - successes
+            
+            lines = [
+                f"# Sentinel Session Report",
+                f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                f"**Sentinel Version:** {self.VERSION}",
+                "",
+                "## Summary",
+                f"- Total actions: {total}",
+                f"- Successful: {successes}",
+                f"- Failed: {failures}",
+                f"- Warnings issued: {self.state.warnings_given_this_session}",
+                f"- System degraded: {'Yes' if self.state.is_degraded else 'No'}",
+                f"- Panic mode triggered: {'Yes' if self.state.is_panic_mode else 'No'}",
+                "",
+            ]
+            
+            if self.warnings_issued:
+                lines.append("## Warnings")
+                for w in self.warnings_issued[-10:]:
+                    lines.append(f"- [{w.get('level', '?')}] {w.get('reason', 'N/A')}")
+                lines.append("")
+            
+            lessons = self.lesson_memory.lessons
+            if lessons:
+                lines.append("## Lessons Learned")
+                for l in lessons:
+                    lines.append(f"- **{l.pattern_type}**: {l.trigger} → {l.consequence} ({l.times_seen}x)")
+                lines.append("")
+            
+            if self.state.risk_escalation_trend:
+                lines.append("## Risk Trend")
+                trend = self.state.risk_escalation_trend[-10:]
+                bar = " ".join([f"{v:3d}" for v in trend])
+                lines.append(f"```\n{bar}\n```")
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("\n".join(lines))
+            return filename
+        except Exception:
+            return None
+    
+    INJECTION_PATTERNS = [
+        "ignore previous instructions", "ignore all previous",
+        "disregard above", "forget your instructions",
+        "you are now", "new instructions:", "system prompt:",
+        "override:", "act as if", "pretend you are",
+        "do not follow", "ignore safety", "bypass security",
+    ]
+    
+    def check_prompt_injection(self, content: str) -> dict:
+        """Check content for potential prompt injection attempts"""
+        if not content or not self._enabled:
+            return {"safe": True, "threats": []}
+        
+        content_lower = content.lower()
+        threats = []
+        for pattern in self.INJECTION_PATTERNS:
+            if pattern in content_lower:
+                threats.append(pattern)
+        
+        if threats:
+            self._log(f"Prompt injection detected: {threats}")
+            return {"safe": False, "threats": threats}
+        return {"safe": True, "threats": []}
 
 
 sentinel_instance = Sentinel()
